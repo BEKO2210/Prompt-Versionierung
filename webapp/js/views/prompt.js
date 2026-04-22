@@ -273,6 +273,7 @@ function renderMainHead({ project, prompt, version }) {
         <button class="btn" data-act="edit">${icon("pencil", { size: 13 })} Edit → new version</button>
         <button class="btn" data-act="fork">${icon("fork", { size: 13 })} Fork</button>
         <button class="btn" data-act="run">${icon("play", { size: 13 })} Run</button>
+        <button class="btn" data-act="batch">${icon("beaker", { size: 13 })} Batch</button>
         <button class="btn ghost-accent" data-act="refine">${icon("spark", { size: 13 })} Refine</button>
         <button class="btn" data-act="compare">${icon("compare", { size: 13 })} Compare</button>
         <button class="btn accent" data-act="promote">${icon("crown", { size: 13 })} Promote</button>
@@ -929,6 +930,7 @@ export function bindPromptView(root, route) {
   root.querySelector('[data-act="edit"]')?.addEventListener("click", () => openEditModal(ctx));
   root.querySelector('[data-act="fork"]')?.addEventListener("click", () => openForkModal(ctx));
   root.querySelector('[data-act="run"]')?.addEventListener("click", () => openRunModal(ctx));
+  root.querySelector('[data-act="batch"]')?.addEventListener("click", () => openBatchModal(ctx));
   root.querySelector('[data-act="refine"]')?.addEventListener("click", () =>
     navigate(`/p/${ctx.project.slug}/p/${ctx.prompt.slug}/refine/${ctx.version.id}`));
   root.querySelector('[data-act="compare"]')?.addEventListener("click", () =>
@@ -1011,6 +1013,7 @@ export function promptShortcuts(route) {
     "E": () => openEditModal(ctx),
     "F": () => openForkModal(ctx),
     "R": () => openRunModal(ctx),
+    "B": () => openBatchModal(ctx),
   };
 }
 
@@ -1210,6 +1213,197 @@ function openRunModal({ project, prompt, version }) {
       } else {
         toast("Run completed");
       }
+    },
+  });
+}
+
+// Matrix run: |profiles| × |test cases| runs on one version. Each child
+// run is an ordinary row — the Runs tab, Trend chart, Compare evidence
+// all pick them up automatically.
+function openBatchModal({ project, prompt, version }) {
+  const profiles = project.modelProfiles || [];
+  const cases = (project.datasets || []).flatMap(
+    (d) => (d.testCases || []).map((tc) => ({ ...tc, datasetName: d.name })));
+
+  if (!profiles.length) {
+    modal({
+      title: "Batch run — needs model profiles",
+      body: `<p style="color:var(--fg-muted);font-size:13px">Add model profiles under the Models tab. The <code>mock</code> provider works with no API key and is perfect for offline use.</p>`,
+      primary: "OK",
+      onSubmit: () => {},
+    });
+    return;
+  }
+
+  const profileRows = profiles.map((m) => `
+    <label class="batch-row">
+      <input type="checkbox" data-kind="profile" value="${escapeAttr(m.id)}" data-provider="${escapeAttr(m.provider)}" data-model-id="${escapeAttr(m.modelId)}" checked />
+      <span class="batch-row-label">
+        <strong>${escapeHtml(m.name)}</strong>
+        <span class="batch-row-meta">${escapeHtml(m.provider)}:${escapeHtml(m.modelId)}</span>
+      </span>
+    </label>`).join("");
+
+  const caseRows = cases.length ? cases.map((c) => `
+    <label class="batch-row">
+      <input type="checkbox" data-kind="case" value="${escapeAttr(c.id)}" checked />
+      <span class="batch-row-label">
+        <strong>${escapeHtml(c.name)}</strong>
+        <span class="batch-row-meta">${escapeHtml(c.datasetName)}</span>
+      </span>
+    </label>`).join("")
+    : `<div class="empty" style="padding:14px"><div class="sub">No test cases in this project. The batch will use ad-hoc variable bindings from the version defaults.</div></div>`;
+
+  // Live totals: profiles × cases, plus a cost estimate that sums each
+  // profile's input cost (the rendered prompt is identical per test case
+  // modulo variable substitution — we approximate with defaults so the
+  // user sees a ballpark before launching).
+  setTimeout(async () => {
+    const root = document.getElementById("modal-root");
+    if (!root) return;
+    const { tokensFor, formatCost } = await import("../tokens.js");
+    const { costFor } = await import("../pricing.js");
+    const { render } = await import("../domain.js");
+
+    // Pre-render once with version defaults — good enough for a cost
+    // estimate. Per-test-case rendering would overwhelm the modal and
+    // differ only in the variable values.
+    let rendered;
+    try {
+      const bindings = {};
+      for (const v of version.variables || []) bindings[v.name] = v.defaultValue ?? "";
+      rendered = render(version.body, version.variables || [], bindings);
+    } catch { rendered = version.body; }
+
+    // Token count per profile caches across changes.
+    const tokenCache = new Map();
+    async function tokensForProfile(profile) {
+      const k = profile.modelId;
+      if (tokenCache.has(k)) return tokenCache.get(k);
+      const r = await tokensFor(rendered, profile.modelId);
+      tokenCache.set(k, r);
+      return r;
+    }
+
+    const totals = root.querySelector("[data-batch-totals]");
+    async function refresh() {
+      if (!totals) return;
+      const profIds = [...root.querySelectorAll('[data-kind="profile"]:checked')].map((i) => i.value);
+      const caseIds = [...root.querySelectorAll('[data-kind="case"]:checked')].map((i) => i.value);
+      const nProfiles = profIds.length;
+      const nCases = Math.max(1, caseIds.length); // ad-hoc = 1 cell per profile
+      const count = nProfiles * nCases;
+
+      if (nProfiles === 0) {
+        totals.innerHTML = `<span style="color:var(--rose-700)">Select at least one model profile.</span>`;
+        return;
+      }
+
+      let totalCost = 0;
+      let approx = false;
+      for (const id of profIds) {
+        const p = profiles.find((m) => m.id === id);
+        if (!p) continue;
+        const tok = await tokensForProfile(p);
+        if (tok.method !== "tiktoken") approx = true;
+        const c = costFor({ provider: p.provider, modelId: p.modelId, inputTokens: tok.tokens, outputTokens: 0 });
+        totalCost += c.in * nCases;
+      }
+      const prefix = approx ? "≈ " : "";
+      totals.innerHTML = `
+        <strong>${count}</strong> run${count === 1 ? "" : "s"}
+        <span style="color:var(--fg-faint)">(${nProfiles} model${nProfiles === 1 ? "" : "s"} × ${nCases} ${cases.length ? `case${nCases === 1 ? "" : "s"}` : "ad-hoc"})</span>
+        <span style="margin-left:10px">${prefix}<strong>${formatCost(totalCost)}</strong> input cost · output billed per-token</span>`;
+    }
+
+    // Wire Select all / none and per-checkbox listeners.
+    root.querySelectorAll("[data-batch-group]").forEach((group) => {
+      const kind = group.getAttribute("data-batch-group");
+      group.querySelectorAll(`[data-sel]`).forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          const mode = btn.getAttribute("data-sel");
+          root.querySelectorAll(`[data-kind="${kind}"]`).forEach((cb) => {
+            cb.checked = mode === "all";
+          });
+          refresh();
+        });
+      });
+    });
+    root.querySelectorAll('[data-kind="profile"], [data-kind="case"]').forEach((cb) => {
+      cb.addEventListener("change", refresh);
+    });
+    refresh();
+  }, 0);
+
+  modal({
+    title: `Batch run v${version.number}`,
+    sub: `Runs this version across every selected (model × test case) pair. Each cell is an ordinary run — it shows up in the Runs tab and feeds the Trend chart.`,
+    body: `
+      <div class="batch-grid">
+        <div data-batch-group="profile">
+          <div class="batch-head">
+            <label>Model profiles</label>
+            <span class="batch-selectors">
+              <button type="button" class="batch-sel" data-sel="all">all</button>
+              <span style="color:var(--ink-300)">·</span>
+              <button type="button" class="batch-sel" data-sel="none">none</button>
+            </span>
+          </div>
+          <div class="batch-list">${profileRows}</div>
+        </div>
+        <div data-batch-group="case">
+          <div class="batch-head">
+            <label>Test cases</label>
+            <span class="batch-selectors">
+              <button type="button" class="batch-sel" data-sel="all">all</button>
+              <span style="color:var(--ink-300)">·</span>
+              <button type="button" class="batch-sel" data-sel="none">none</button>
+            </span>
+          </div>
+          <div class="batch-list">${caseRows}</div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px"><label>Evaluators</label>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:13px">
+          <label><input type="checkbox" name="ev_regex" checked> Regex / contains</label>
+          <label><input type="checkbox" name="ev_schema"> JSON schema</label>
+          <label><input type="checkbox" name="ev_similarity"> Similarity</label>
+        </div>
+      </div>
+      <div class="batch-totals" data-batch-totals></div>`,
+    primary: "Launch batch", secondary: "Cancel",
+    onSubmit: async (data) => {
+      const root = document.getElementById("modal-root");
+      const modelProfileIds = [...root.querySelectorAll('[data-kind="profile"]:checked')].map((i) => i.value);
+      const testCaseIds     = [...root.querySelectorAll('[data-kind="case"]:checked')].map((i) => i.value);
+      if (!modelProfileIds.length) throw new Error("Select at least one model profile.");
+
+      const evaluators = [];
+      if (data.ev_regex) evaluators.push("regex");
+      if (data.ev_schema) evaluators.push("schema");
+      if (data.ev_similarity) evaluators.push("similarity");
+
+      // Switch to Runs tab so the user sees the running rows appear.
+      navigate(`/p/${project.slug}/p/${prompt.slug}/v/${version.id}`, { tab: "runs" });
+
+      const { runIds, errors, total } = await services.batchRun({
+        promptId: prompt.id, versionId: version.id,
+        modelProfileIds, testCaseIds,
+        evaluators,
+      });
+      await commit();
+
+      // Summarise outcome. Per-cell failures are already visible as
+      // "failed" rows — we just count them here.
+      const s2 = getState();
+      const freshPrompt = s2?.projects?.flatMap((p) => p.prompts).find((p) => p.id === prompt.id);
+      const mine = (freshPrompt?.runs || []).filter((r) => runIds.includes(r.id));
+      const failed = mine.filter((r) => r.status === "failed").length + errors.length;
+      const mocked = mine.filter((r) => r.mocked).length;
+      if (failed > 0)      toast(`Batch finished: ${total - failed}/${total} ok · ${failed} failed`);
+      else if (mocked > 0) toast(`Batch finished: ${total} runs (${mocked} mock fallback — see Settings)`);
+      else                 toast(`Batch finished: ${total} runs`);
     },
   });
 }

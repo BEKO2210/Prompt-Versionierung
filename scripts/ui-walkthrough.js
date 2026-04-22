@@ -242,6 +242,13 @@ async function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     await snap("17-promote-modal");
     await page.keyboard.press("Escape");
 
+    console.log("=== Batch modal ===");
+    await page.click('[data-act="batch"]').catch(() => {});
+    await wait(400);
+    await snap("30-batch-modal");
+    await checkOverlaps("batch-modal");
+    await page.keyboard.press("Escape");
+
   } finally {
     console.log("\n=== ERRORS ===");
     if (errors.length === 0) console.log("(no console errors)");

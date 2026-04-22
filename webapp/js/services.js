@@ -436,6 +436,57 @@ export async function createRun({ promptId, versionId, modelProfileId, testCaseI
 function tryParseJSON(s) { try { return JSON.parse(s); } catch { return null; } }
 
 // ---------------------------------------------------------------------------
+// Batch run: fan out one version across N model profiles × M test cases
+// in one click. Thin wrapper around createRun — each child run is an
+// ordinary row that goes through the full running → terminal lifecycle,
+// records its own run_completed activity, and attaches evaluations.
+//
+// We intentionally don't introduce a "batch" entity: keeping each run a
+// first-class row is what makes the Trend / Compare / Evidence views
+// work without new plumbing. Callers receive a flat list of runIds and
+// per-cell errors they can surface.
+//
+// Concurrency: we fire createRun() for every cell in parallel. Each
+// createRun is already two-phase (insert running → await adapter →
+// finalize), so the UI paints N spinners immediately. Real-provider
+// adapters share the browser's HTTP concurrency limit; the mock adapter
+// resolves on the next tick.
+// ---------------------------------------------------------------------------
+export async function batchRun({
+  promptId, versionId, modelProfileIds, testCaseIds = null,
+  evaluators = ["regex"], variableBindings = {}, temperature, maxTokens,
+}) {
+  if (!modelProfileIds?.length) throw new Error("Select at least one model profile");
+  // null signals "ad-hoc only" — that's still one cell per model profile.
+  const tcs = testCaseIds?.length ? testCaseIds : [null];
+
+  const tasks = [];
+  for (const modelProfileId of modelProfileIds) {
+    for (const testCaseId of tcs) {
+      tasks.push({ modelProfileId, testCaseId });
+    }
+  }
+
+  const settled = await Promise.allSettled(
+    tasks.map((t) => createRun({
+      promptId, versionId,
+      modelProfileId: t.modelProfileId,
+      testCaseId: t.testCaseId,
+      variableBindings, evaluators, temperature, maxTokens,
+    }).then((id) => ({ ...t, runId: id }))),
+  );
+
+  const runIds = [];
+  const errors = [];
+  for (let i = 0; i < settled.length; i++) {
+    const r = settled[i];
+    if (r.status === "fulfilled") runIds.push(r.value.runId);
+    else errors.push({ ...tasks[i], error: r.reason?.message || String(r.reason) });
+  }
+  return { runIds, errors, total: tasks.length };
+}
+
+// ---------------------------------------------------------------------------
 // Refinement: diagnose → suggest → accept/reject
 // ---------------------------------------------------------------------------
 export function diagnoseAndPropose(promptId, versionId) {
