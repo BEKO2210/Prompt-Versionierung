@@ -100,8 +100,8 @@ export function lineChart({
     : "";
 
   return `
-    <div class="chart" style="width:${width}px;max-width:100%">
-      <svg viewBox="0 0 ${width} ${height}" class="chart-svg" role="img" aria-label="${escapeHtml(yAxis.label || "trend")}">
+    <div class="chart" style="max-width:${width}px">
+      <svg viewBox="0 0 ${width} ${height}" class="chart-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escapeHtml(yAxis.label || "trend")}">
         ${grid}
         ${xTicks}
         ${lines}
@@ -122,12 +122,12 @@ export function bindChartTooltips(root) {
         const label = dot.getAttribute("data-tip");
         if (!label || !tip) return;
         tip.textContent = label;
-        const cx = parseFloat(dot.getAttribute("cx"));
-        const cy = parseFloat(dot.getAttribute("cy"));
-        // Convert SVG coords to chart-relative coords (the SVG is sized
-        // by viewBox; we trust it scales 1:1 inside .chart for layout).
-        tip.style.left = `${cx + 8}px`;
-        tip.style.top  = `${cy - 24}px`;
+        // Use the rendered bounding box so the tooltip tracks the dot even
+        // when the SVG is scaled down (mobile) or up (wide viewports).
+        const chartRect = chart.getBoundingClientRect();
+        const dotRect = dot.getBoundingClientRect();
+        tip.style.left = `${dotRect.left - chartRect.left + dotRect.width + 4}px`;
+        tip.style.top  = `${dotRect.top  - chartRect.top  - 22}px`;
         tip.hidden = false;
       });
       dot.addEventListener("mouseleave", () => {
