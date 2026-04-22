@@ -4,13 +4,17 @@
 // tree, legend), main pane (version crumbs, title, action bar, tabs,
 // content: body + variables + metadata, analyzer signals).
 
-import { html, escapeHtml, icon, brandMark, modal, toast, statusPill, hashChip, scoreCell, relTime, avatar, authorInline, resolveMember } from "../ui/components.js";
+import { html, escapeHtml, icon, brandMark, modal, toast, drawer, statusPill, hashChip, scoreCell, relTime, avatar, authorInline, resolveMember } from "../ui/components.js";
 import { getState, commit } from "../store.js";
 import * as services from "../services.js";
 import { buildTree, canTransition, STATUSES, analyze } from "../domain.js";
 import { navigate } from "../router.js";
 import { timeline } from "../ui/timeline.js";
 import { renderMarkdown } from "../ui/markdown.js";
+import {
+  serializeRun, serializeRunsForVersion,
+  downloadJSON, copyJSON, fileNameForRun, fileNameForRunsBundle,
+} from "../runFormat.js";
 
 // --- entry points ---
 export function renderPromptView(route) {
@@ -527,18 +531,32 @@ function groupBy(arr, keyFn) {
 function renderRunsTab({ project, prompt, version }) {
   const runs = (prompt.runs || []).filter((r) => r.versionId === version.id)
     .sort((a, b) => b.createdAt - a.createdAt);
+  const headerRight = runs.length
+    ? `<div style="display:flex;gap:6px;align-items:center">
+         <span class="meta" style="margin-right:6px">${runs.length} run${runs.length === 1 ? "" : "s"}</span>
+         <button class="btn sm" data-act="export-runs">${icon("download", { size: 12 })} Export all (JSON)</button>
+       </div>`
+    : "";
   if (!runs.length) {
-    return `<div class="empty">
-      <div class="ttl">No runs on this version yet</div>
-      <div class="sub">Use the <strong>Run</strong> button above to execute this version against a test case.</div>
-    </div>`;
+    return `
+      <div class="section-head">
+        <div class="eyebrow">Runs &amp; evidence</div>
+      </div>
+      <div class="empty">
+        <div class="ttl">No runs on this version yet</div>
+        <div class="sub">Use the <strong>Run</strong> button above to execute this version against a test case.</div>
+      </div>`;
   }
   return `
+    <div class="section-head">
+      <div class="eyebrow">Runs &amp; evidence</div>
+      ${headerRight}
+    </div>
     <table class="table">
       <thead>
         <tr>
           <th>When</th><th>Test case</th><th>Model</th><th>Status</th>
-          <th class="right">Latency</th><th class="right">Tokens</th><th class="right">Score</th>
+          <th class="right">Latency</th><th class="right">Tokens</th><th class="right">Score</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -550,10 +568,10 @@ function renderRunsTab({ project, prompt, version }) {
             ? `<span title="${escapeAttr(r.mockedReason || 'Mock fallback used')}" style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;background:var(--amber-50);color:var(--amber-700);border:1px solid var(--amber-200);font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase">mock</span>`
             : "";
           const errorRow = r.status === "failed" && r.error
-            ? `<tr><td></td><td colspan="6" style="color:var(--rose-700);font-size:12px;padding-top:0">${escapeHtml(r.error)}</td></tr>`
+            ? `<tr><td></td><td colspan="7" style="color:var(--rose-700);font-size:12px;padding-top:0">${escapeHtml(r.error)}</td></tr>`
             : "";
           return `
-            <tr>
+            <tr class="run-row" data-run-id="${escapeAttr(r.id)}">
               <td class="mono">${escapeHtml(relTime(r.createdAt))}</td>
               <td>${tc ? escapeHtml(tc.name) : '<span style="color:var(--fg-faint)">ad-hoc</span>'}</td>
               <td>${mp ? escapeHtml(mp.name) : "—"}${mockBadge}</td>
@@ -561,6 +579,7 @@ function renderRunsTab({ project, prompt, version }) {
               <td class="right">${r.latencyMs ?? "—"} ms</td>
               <td class="right">${(r.inputTokens ?? "?")}/${(r.outputTokens ?? "?")}</td>
               <td class="right">${scoreCell(score)}</td>
+              <td class="right" style="color:var(--fg-faint);font-size:11px">open ↗</td>
             </tr>${errorRow}`;
         }).join("")}
       </tbody>
@@ -722,6 +741,12 @@ export function bindPromptView(root, route) {
 
   // --- proposals ---
   root.querySelector('[data-act="new-proposal"]')?.addEventListener("click", () => openProposalModal(ctx));
+
+  // --- runs tab: row click → drawer; export-all button ---
+  root.querySelectorAll(".run-row").forEach((row) => {
+    row.addEventListener("click", () => openRunDrawer(ctx, row.dataset.runId));
+  });
+  root.querySelector('[data-act="export-runs"]')?.addEventListener("click", () => exportRunsBundle(ctx));
 }
 
 // Expose a shortcut map for main.js keyboard handler.
@@ -1006,4 +1031,110 @@ function openProposalModal({ project, prompt, version }) {
       navigate(`/p/${project.slug}/p/${prompt.slug}/proposals/${id}`);
     },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Run detail drawer + JSON exports
+// ---------------------------------------------------------------------------
+function openRunDrawer(ctx, runId) {
+  const env = serializeRun(getState(), runId);
+  if (!env) { toast("Run not found"); return; }
+
+  const evalsHtml = env.evaluations.length
+    ? `<div class="drawer-kv" style="grid-template-columns:120px 1fr 80px 60px">
+         ${env.evaluations.map((e) => `
+           <div class="k">${escapeHtml(e.evaluatorKind)}</div>
+           <div class="v" style="font-family:inherit">${escapeHtml(e.notes || "")}</div>
+           <div class="v" style="text-align:right">${e.score == null ? "—" : Math.round(e.score * 100) + "%"}</div>
+           <div class="v" style="text-align:right">${e.passed === true ? "✓" : e.passed === false ? "✗" : "—"}</div>
+         `).join("")}
+       </div>`
+    : `<div style="color:var(--fg-faint);font-size:12.5px">No evaluations attached.</div>`;
+
+  const tcLine = env.input.testCase
+    ? `<span>${escapeHtml(env.input.testCase.name)}</span>
+       <span style="color:var(--fg-faint);margin-left:6px">expected (${escapeHtml(env.input.testCase.expectedKind)}):
+       <code>${escapeHtml(env.input.testCase.expectedOutput || "—")}</code></span>`
+    : `<span style="color:var(--fg-faint)">ad-hoc (no test case)</span>`;
+
+  const headerMeta = `${escapeHtml(env.run.id)} · v${env.version?.number ?? "?"}`;
+
+  const body = `
+    <div class="drawer-section">
+      <div class="drawer-kv">
+        <div class="k">Status</div><div class="v">${escapeHtml(env.run.status)}${env.run.mocked ? " · mock fallback" : ""}</div>
+        <div class="k">Started</div><div class="v">${escapeHtml(env.run.startedAt || "?")}</div>
+        <div class="k">Latency</div><div class="v">${env.run.latencyMs ?? "—"} ms</div>
+        <div class="k">Tokens</div><div class="v">in ${env.usage.inputTokens ?? "?"} · out ${env.usage.outputTokens ?? "?"}</div>
+        <div class="k">Provider</div><div class="v">${escapeHtml(env.model.provider || "?")} · ${escapeHtml(env.model.modelId || "?")}</div>
+        <div class="k">Settings</div><div class="v">T=${env.model.temperature ?? "?"} · max=${env.model.maxTokens ?? "?"}</div>
+        ${env.run.providerResponseId ? `<div class="k">Response id</div><div class="v">${escapeHtml(env.run.providerResponseId)}</div>` : ""}
+        ${env.run.error ? `<div class="k">Error</div><div class="v" style="color:var(--rose-700)">${escapeHtml(env.run.error)}</div>` : ""}
+      </div>
+    </div>
+
+    <div class="drawer-section">
+      <div class="label">Test case</div>
+      <div style="font-size:12.5px">${tcLine}</div>
+    </div>
+
+    <div class="drawer-section">
+      <div class="label">Variable bindings</div>
+      <pre>${escapeHtml(JSON.stringify(env.input.variableBindings ?? {}, null, 2))}</pre>
+    </div>
+
+    <div class="drawer-section">
+      <div class="label">Rendered prompt
+        <span class="meta">${env.input.renderedPrompt ? env.input.renderedPrompt.length + " chars" : ""}</span>
+      </div>
+      <pre>${escapeHtml(env.input.renderedPrompt || "")}</pre>
+    </div>
+
+    <div class="drawer-section">
+      <div class="label">Raw output
+        <span class="meta">${env.output.raw ? env.output.raw.length + " chars" : "no output"}</span>
+      </div>
+      <pre>${escapeHtml(env.output.raw || "(empty)")}</pre>
+    </div>
+
+    ${env.output.structured ? `
+      <div class="drawer-section">
+        <div class="label">Parsed structured output</div>
+        <pre>${escapeHtml(JSON.stringify(env.output.structured, null, 2))}</pre>
+      </div>` : ""}
+
+    <div class="drawer-section">
+      <div class="label">Evaluations</div>
+      ${evalsHtml}
+    </div>
+  `;
+
+  const actions = `
+    <button class="btn" data-act="copy-json">${icon("download", { size: 13 })} Copy JSON</button>
+    <button class="btn primary" data-act="download-json">${icon("download", { size: 13 })} Download JSON</button>
+    <span style="margin-left:auto;color:var(--fg-faint);font-size:11px">schema: ${escapeHtml(env.schema)}</span>
+  `;
+
+  drawer({
+    title: `Run · v${env.version?.number ?? "?"} — ${escapeHtml(env.version?.title || "")}`,
+    meta: headerMeta,
+    body, actions,
+    onOpen: (root) => {
+      root.querySelector('[data-act="copy-json"]')?.addEventListener("click", async () => {
+        const ok = await copyJSON(env);
+        toast(ok ? "Copied JSON to clipboard" : "Copy failed");
+      });
+      root.querySelector('[data-act="download-json"]')?.addEventListener("click", () => {
+        downloadJSON(fileNameForRun(env), env);
+        toast("Downloaded run JSON");
+      });
+    },
+  });
+}
+
+function exportRunsBundle({ prompt, version }) {
+  const bundle = serializeRunsForVersion(getState(), prompt.id, version.id);
+  if (!bundle || !bundle.runs.length) { toast("No runs to export"); return; }
+  downloadJSON(fileNameForRunsBundle(bundle), bundle);
+  toast(`Exported ${bundle.runs.length} run${bundle.runs.length === 1 ? "" : "s"}`);
 }

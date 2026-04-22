@@ -95,6 +95,14 @@ async function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     await snap("04-prompt-runs");
     await checkOverlaps("runs");
 
+    console.log("=== Run drawer ===");
+    await page.click(".run-row").catch(() => {});
+    await wait(400);
+    await snap("24-run-drawer");
+    await checkOverlaps("run-drawer");
+    await page.keyboard.press("Escape");
+    await wait(250);
+
     console.log("=== Lineage tab ===");
     await page.goto("http://localhost:4420/#/p/demo/p/ticket-classifier/v/ver_5?tab=lineage", { waitUntil: "networkidle" });
     await wait(300);

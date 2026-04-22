@@ -142,5 +142,48 @@ export function authorInline(member, size = 18) {
   return `<span class="author">${avatar(member, size)}<span class="author-name">${escapeHtml(member?.name || "Unknown")}</span></span>`;
 }
 
+// ---------------------------------------------------------------------------
+// Drawer (right-side slide-in panel). Single instance, replaces previous
+// content. Caller passes raw HTML for body + actions; we wire the
+// backdrop click and the Escape key.
+// ---------------------------------------------------------------------------
+export function drawer({ title, meta, body, actions, onOpen }) {
+  const root = document.getElementById("drawer-root");
+  root.innerHTML = `
+    <div class="drawer-backdrop" data-drawer-backdrop></div>
+    <aside class="drawer" role="dialog" aria-modal="true">
+      <div class="drawer-head">
+        <div class="ttl">${title || ""}</div>
+        ${meta ? `<div class="meta">${meta}</div>` : ""}
+        <button class="btn ghost" data-act="close-drawer" aria-label="Close">✕</button>
+      </div>
+      <div class="drawer-body">${body || ""}</div>
+      ${actions ? `<div class="drawer-actions">${actions}</div>` : ""}
+    </aside>`;
+
+  // Animate in next frame.
+  requestAnimationFrame(() => {
+    root.querySelector(".drawer-backdrop")?.classList.add("open");
+    root.querySelector(".drawer")?.classList.add("open");
+  });
+
+  function close() {
+    const back = root.querySelector(".drawer-backdrop");
+    const dr   = root.querySelector(".drawer");
+    back?.classList.remove("open");
+    dr?.classList.remove("open");
+    document.removeEventListener("keydown", onKey);
+    setTimeout(() => { root.innerHTML = ""; }, 180);
+  }
+  function onKey(e) { if (e.key === "Escape") close(); }
+  document.addEventListener("keydown", onKey);
+  root.querySelector("[data-drawer-backdrop]")?.addEventListener("click", close);
+  root.querySelector('[data-act="close-drawer"]')?.addEventListener("click", close);
+
+  // Hook for callers that want to bind action buttons inside body/actions.
+  onOpen?.(root, close);
+  return { close };
+}
+
 // Re-export icon + brandMark + member helpers.
 export { icon, brandMark };

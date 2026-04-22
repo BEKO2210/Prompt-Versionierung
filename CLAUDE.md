@@ -83,8 +83,8 @@ sub-bullets in place. Done items move to §2.
 | B1.2 | Real Anthropic adapter using `anthropic-dangerous-direct-browser-access` | **done** | adapter + registry under `webapp/js/adapters/models/`; `createRun` is two-phase async (running → succeeded/failed); run row records `mocked + mockedReason` when key missing; run modal shows live provider status |
 | B1.3 | Real OpenAI adapter | **done** | `adapters/models/openai.js`; standard chat completions; o-series uses `max_completion_tokens` and folds `system` into a leading user header; error-mapping mirrors Anthropic |
 | B1.4 | Real Google Gemini adapter | **done** | `adapters/models/gemini.js`; auth via `x-goog-api-key` header (never in URL); contents/parts shape; system → `systemInstruction`; safety-block → typed error |
-| B2 | **Standardised run output format** | next | every run already has the uniform `ModelResult` envelope across providers; B2 is to expose a one-click "Export run as JSON" + a stable shape for downstream tooling |
-| B3 | **Token counting via js-tiktoken** | pending | cost prediction in run dialog + retro on existing runs |
+| B2 | **Standardised run output format** | **done** | `webapp/js/runFormat.js` produces `prompt-tree-run/1` envelope per run + `prompt-tree-runs/1` bundle per version; right-side drawer for run detail with Copy/Download JSON; "Export all" on the Runs tab; full schema documented in `docs/run-format.md` (with stability guarantee) |
+| B3 | **Token counting via js-tiktoken** | next | cost prediction in run dialog + retro on existing runs; reuses already-vendored js-tiktoken |
 | B4 | **Tutorial onboarding** | pending | first-run interactive tour over real demo data |
 | B5 | **Info / Help page** | pending | one-page reference: every concept, every keyboard shortcut |
 
