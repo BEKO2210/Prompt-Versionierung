@@ -92,15 +92,15 @@ sub-bullets in place. Done items move to §2.
 
 ### 3.B Phase C — Differentiators
 
-| # | Item |
-|---|---|
-| C1 | Blame view: each body line shows the version that introduced it |
-| C2 | Eval-score trend chart per prompt (uses Chart.js or μPlot) |
-| C3 | A/B testing with statistical significance markers (Wilson score) |
-| C4 | Multi-model batch evaluation: run one version across N model profiles in one click |
-| C5 | Markdown via marked for README + proposals |
-| C6 | Fuzzy command palette via Fuse.js |
-| C7 | Approval gate on proposals: configurable N approvals required to merge |
+| # | Item | Status |
+|---|---|---|
+| C1 | Blame view: each body line shows the version that introduced it | next |
+| C2 | Eval-score trend chart per prompt (uses Chart.js or μPlot) | pending |
+| C3 | A/B testing with statistical significance markers (Wilson score) | pending |
+| C4 | Multi-model batch evaluation: run one version across N model profiles in one click | pending |
+| C5 | Markdown via marked for README + proposals | **done** | swapped `renderMarkdown` → `vendor.md` (marked) on the README tab, proposal description, all proposal discussion comments and inline review comments. `.comment-text` CSS tightened so paragraphs sit naturally inside the comment chrome. |
+| C6 | Fuzzy command palette via Fuse.js | **done** | `paletteCorpus()` builds a uniform record list; cached Fuse instance keyed on `meta.revision`; weighted keys (title 0.55 / slug 0.15 / projectName 0.10 / snippet 0.20); first keystroke uses substring fallback while Fuse warms, then re-ranks once loaded. |
+| C7 | Approval gate on proposals: configurable N approvals required to merge | pending |
 
 ### 3.C Phase D — Network effects
 

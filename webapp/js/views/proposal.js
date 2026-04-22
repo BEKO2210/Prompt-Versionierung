@@ -11,6 +11,7 @@ import { getState, commit } from "../store.js";
 import * as services from "../services.js";
 import { diffText } from "../domain.js";
 import { navigate } from "../router.js";
+import { md } from "../vendor.js";
 
 // ---------------------------------------------------------------------------
 // Render
@@ -99,7 +100,7 @@ function renderDescription(project, proposal, opener) {
           <span class="name">${escapeHtml(opener.name)}</span>
           <span>proposed this change · ${escapeHtml(relTime(proposal.openedAt))}</span>
         </div>
-        <div class="comment-text">${escapeHtml(proposal.description)}</div>
+        <div class="comment-text">${md(proposal.description)}</div>
       </div>
     </div>`;
 }
@@ -188,7 +189,7 @@ function rcCommentBlock(rc) {
         <span>${escapeHtml(relTime(rc.createdAt))}</span>
         <span style="margin-left:auto;font-size:11px">line ${rc.lineIndex + 1} · side ${escapeHtml(rc.side.toUpperCase())}</span>
       </div>
-      <div class="comment-text">${escapeHtml(rc.body)}</div>
+      <div class="comment-text">${md(rc.body)}</div>
     </div>
   </div>`;
 }
@@ -246,7 +247,7 @@ function renderThread(project, proposal) {
                     <span class="name">${escapeHtml(member.name)}</span>
                     <span>${escapeHtml(relTime(c.createdAt))}</span>
                   </div>
-                  <div class="comment-text">${escapeHtml(c.body)}</div>
+                  <div class="comment-text">${md(c.body)}</div>
                 </div>
               </div>`;
             }).join("")}

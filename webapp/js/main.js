@@ -165,6 +165,8 @@ function openPalette() {
   root.innerHTML = paletteMarkup();
   wirePalette(root);
   setTimeout(() => root.querySelector(".palette-input")?.focus(), 0);
+  // Warm Fuse asynchronously so the *next* keystroke ranks fuzzily.
+  warmPalette().catch(() => {});
 }
 function closePalette() {
   paletteState.open = false;
@@ -196,11 +198,22 @@ function escape(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&
 
 function wirePalette(root) {
   const input = root.querySelector(".palette-input");
-  input.addEventListener("input", () => {
+  input.addEventListener("input", async () => {
     paletteState.q = input.value;
     paletteState.active = 0;
     paletteState.items = buildPaletteItems(input.value);
     rerenderPalette(root);
+    // After the first keystroke, the index is loaded; refresh once more
+    // so the substring fallback we showed gets replaced by the proper
+    // fuzzy ranking. No-op if Fuse was already ready.
+    if (paletteState.q && paletteState.q.length >= 2) {
+      const before = _fuse;
+      await warmPalette();
+      if (_fuse !== before) {
+        paletteState.items = buildPaletteItems(paletteState.q);
+        rerenderPalette(root);
+      }
+    }
   });
   root.addEventListener("click", (e) => {
     if (e.target.matches("[data-palette]")) { closePalette(); return; }
@@ -220,23 +233,84 @@ function rerenderPalette(root) {
   wirePalette(root);
   root.querySelector(".palette-input")?.focus();
 }
-function buildPaletteItems(q) {
+// All searchable items in the workspace, in the same shape regardless
+// of source. Built fresh per query so newly-created items show up
+// immediately. Cheap; even thousands of versions is fast to enumerate.
+function paletteCorpus() {
   const s = getState();
   const items = [];
   for (const p of s.projects) {
-    items.push({ kind: "project", title: p.name, snippet: p.description || "", href: `#/p/${p.slug}` });
+    items.push({
+      kind: "project",
+      title: p.name,
+      snippet: p.description || "",
+      // Side fields searched too (lower weight) so a slug match still wins.
+      slug: p.slug, projectName: p.name,
+      href: `#/p/${p.slug}`,
+    });
     for (const pr of p.prompts) {
-      items.push({ kind: "prompt", title: `${p.name} · ${pr.name}`, snippet: pr.purpose || "", href: `#/p/${p.slug}/p/${pr.slug}` });
+      items.push({
+        kind: "prompt",
+        title: pr.name,
+        snippet: pr.purpose || pr.description || "",
+        slug: pr.slug, projectName: p.name,
+        href: `#/p/${p.slug}/p/${pr.slug}`,
+      });
       for (const v of pr.versions) {
-        items.push({ kind: "version", title: `${pr.name} · v${v.number} — ${v.title}`, snippet: v.body.slice(0, 120),
-          href: `#/p/${p.slug}/p/${pr.slug}/v/${v.id}` });
+        items.push({
+          kind: "version",
+          title: `v${v.number} — ${v.title}`,
+          snippet: (v.body || "").slice(0, 200),
+          slug: pr.slug, projectName: p.name,
+          href: `#/p/${p.slug}/p/${pr.slug}/v/${v.id}`,
+        });
       }
     }
   }
-  if (!q) return items.slice(0, 20);
-  const needle = q.toLowerCase();
-  return items.filter((it) =>
-    it.title.toLowerCase().includes(needle) || (it.snippet || "").toLowerCase().includes(needle)
-  ).slice(0, 50);
+  return items;
 }
+
+// Cached Fuse index. Rebuild when the workspace state revision bumps.
+let _fuse = null;
+let _fuseRev = -1;
+async function getFuse() {
+  const s = getState();
+  const rev = s?.meta?.revision ?? 0;
+  if (_fuse && rev === _fuseRev) return _fuse;
+  const { buildFuse } = await import("./vendor.js");
+  _fuse = buildFuse(paletteCorpus(), {
+    keys: [
+      { name: "title",       weight: 0.55 },
+      { name: "slug",        weight: 0.15 },
+      { name: "projectName", weight: 0.10 },
+      { name: "snippet",     weight: 0.20 },
+    ],
+    threshold: 0.4,
+  });
+  _fuseRev = rev;
+  return _fuse;
+}
+
+function buildPaletteItems(q) {
+  // Empty query: surface a recent slice (still useful as a directory).
+  if (!q || q.trim().length < 2) {
+    return paletteCorpus().slice(0, 20);
+  }
+  // Fuse is async-loaded the first time. Until it's ready, fall back to
+  // a substring filter so the user never sees a blank list during the
+  // first keystroke.
+  if (!_fuse) {
+    void getFuse(); // warm cache for next call
+    const needle = q.toLowerCase();
+    return paletteCorpus().filter((it) =>
+      it.title.toLowerCase().includes(needle) || (it.snippet || "").toLowerCase().includes(needle)
+    ).slice(0, 50);
+  }
+  const matches = _fuse.search(q, { limit: 50 });
+  return matches.map((m) => m.item);
+}
+
+// Refresh whenever the palette opens — keeps it cheap and accurate.
+async function warmPalette() { await getFuse(); }
+
 function openItem(it) { closePalette(); navigate(it.href.replace(/^#/, "")); }

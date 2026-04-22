@@ -10,7 +10,7 @@ import * as services from "../services.js";
 import { buildTree, canTransition, STATUSES, analyze } from "../domain.js";
 import { navigate } from "../router.js";
 import { timeline } from "../ui/timeline.js";
-import { renderMarkdown } from "../ui/markdown.js";
+import { md as renderMarkdown } from "../vendor.js";
 import {
   serializeRun, serializeRunsForVersion,
   downloadJSON, copyJSON, fileNameForRun, fileNameForRunsBundle,
