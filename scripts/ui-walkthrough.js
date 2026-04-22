@@ -110,6 +110,12 @@ async function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     await snap("03-prompt-content");
     await checkOverlaps("prompt-content");
 
+    console.log("=== Blame view ===");
+    await page.goto("http://localhost:4420/#/p/demo/p/ticket-classifier/v/ver_5?blame=1", { waitUntil: "networkidle" });
+    await wait(500);
+    await snap("28-blame");
+    await checkOverlaps("blame");
+
     console.log("=== Runs tab ===");
     await page.goto("http://localhost:4420/#/p/demo/p/ticket-classifier/v/ver_5?tab=runs", { waitUntil: "networkidle" });
     await wait(300);

@@ -94,7 +94,7 @@ sub-bullets in place. Done items move to §2.
 
 | # | Item | Status |
 |---|---|---|
-| C1 | Blame view: each body line shows the version that introduced it | next |
+| C1 | Blame view: each body line shows the version that introduced it | **done** | pure `blame(versions, targetId)` in `domain.js` walks the parent chain root→target, propagates per-line attribution through line-diffs; toggle in Content tab via `?blame=1`; renders gutter table with avatar + version + change summary, consecutive same-source lines collapse via rowspan; click gutter → jump to source version |
 | C2 | Eval-score trend chart per prompt (uses Chart.js or μPlot) | pending |
 | C3 | A/B testing with statistical significance markers (Wilson score) | pending |
 | C4 | Multi-model batch evaluation: run one version across N model profiles in one click | pending |

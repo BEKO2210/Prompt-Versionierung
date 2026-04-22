@@ -7,7 +7,7 @@
 import { html, escapeHtml, icon, brandMark, modal, toast, drawer, statusPill, hashChip, scoreCell, relTime, avatar, authorInline, resolveMember } from "../ui/components.js";
 import { getState, commit } from "../store.js";
 import * as services from "../services.js";
-import { buildTree, canTransition, STATUSES, analyze } from "../domain.js";
+import { buildTree, canTransition, STATUSES, analyze, blame } from "../domain.js";
 import { navigate } from "../router.js";
 import { timeline } from "../ui/timeline.js";
 import { md as renderMarkdown } from "../vendor.js";
@@ -435,7 +435,7 @@ function renderProposalsTab({ project, prompt }) {
 
 // --- Tab: Content (matches the screenshot exactly) ---
 function renderContentTab(ctx) {
-  const { prompt, version } = ctx;
+  const { prompt, version, project } = ctx;
   const parent = version.parentVersionId
     ? prompt.versions.find((v) => v.id === version.parentVersionId)
     : null;
@@ -444,16 +444,27 @@ function renderContentTab(ctx) {
     messages: version.messages, variables: version.variables || [],
   });
   const findingsByAnalyzer = groupBy(findings, (f) => f.analyzer);
+  // ?blame=1 in the hash query toggles the blame view. Browser-only check.
+  const blameActive = (location.hash.split("?")[1] || "").split("&").includes("blame=1");
+
+  const baseUrl = `/p/${escapeHtml(project.slug)}/p/${escapeHtml(prompt.slug)}/v/${escapeHtml(version.id)}`;
+  const toggleHref = blameActive
+    ? `#${baseUrl}`
+    : `#${baseUrl}?blame=1`;
+  const toggleLabel = blameActive ? "Hide blame" : "Show blame";
 
   return `
     <div class="section">
       <div class="section-head">
         <div class="eyebrow">Prompt body</div>
-        <div class="meta">${version.body.length} chars · ${version.body.split(/\r?\n/).length} lines</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <a href="${toggleHref}" class="btn sm" data-blame-toggle>${icon(blameActive ? "tree" : "fork", { size: 12 })} ${toggleLabel}</a>
+          <div class="meta">${version.body.length} chars · ${version.body.split(/\r?\n/).length} lines</div>
+        </div>
       </div>
-      <div class="code-frame">
-        <pre>${escapeHtml(version.body)}</pre>
-      </div>
+      ${blameActive
+        ? renderBlameBody(prompt, project, version)
+        : `<div class="code-frame"><pre>${escapeHtml(version.body)}</pre></div>`}
     </div>
 
     <div class="split">
@@ -505,6 +516,81 @@ function renderVarRow(v) {
       ${v.required ? `<span class="req">required</span>` : `<span class="type" style="color:var(--fg-faint)">optional</span>`}
       <span class="desc">${escapeHtml(v.description || "")}</span>
     </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Blame body — table with one row per body line.
+// Consecutive lines from the same source version share a gutter cell
+// (rowspan-style by collapsing into one rendered row), so a block of
+// 30 unchanged lines doesn't repeat the same author 30 times.
+// ---------------------------------------------------------------------------
+function renderBlameBody(prompt, project, version) {
+  const attribution = blame(prompt.versions, version.id);
+  if (!attribution.length) {
+    return `<div class="code-frame"><pre>${escapeHtml(version.body)}</pre></div>`;
+  }
+  const versionById = new Map(prompt.versions.map((v) => [v.id, v]));
+
+  // Group consecutive same-source lines into runs.
+  const runs = [];
+  let cur = null;
+  attribution.forEach((line, idx) => {
+    if (cur && cur.sourceVersionId === line.sourceVersionId) {
+      cur.lines.push({ ...line, lineNo: idx + 1 });
+    } else {
+      cur = {
+        sourceVersionId: line.sourceVersionId,
+        sourceVersionNumber: line.sourceVersionNumber,
+        lines: [{ ...line, lineNo: idx + 1 }],
+      };
+      runs.push(cur);
+    }
+  });
+
+  return `
+    <div class="blame">
+      <table>
+        <colgroup>
+          <col class="blame-gutter-col" />
+          <col class="blame-lineno-col" />
+          <col />
+        </colgroup>
+        <tbody>
+          ${runs.map((run) => renderBlameRun(run, versionById, project, prompt)).join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function renderBlameRun(run, versionById, project, prompt) {
+  const sv = versionById.get(run.sourceVersionId);
+  const author = sv ? resolveMember(project, sv.createdBy) : null;
+  const isCurrent = false;
+  const blockSize = run.lines.length;
+  const summary = sv?.changeSummary || "(no change summary)";
+  const tooltip = sv
+    ? `v${sv.number} · ${author?.name || "?"} · ${escapeHtml(sv.changeSummary || "(no summary)")}`
+    : "?";
+  const href = sv
+    ? `#/p/${escapeHtml(project.slug)}/p/${escapeHtml(prompt.slug)}/v/${escapeHtml(sv.id)}`
+    : "#";
+  const gutter = `
+    <a class="blame-gutter ${isCurrent ? "self" : ""}" href="${href}" title="${escapeAttr(tooltip)}">
+      ${author ? avatar(author, 18) : ""}
+      <span class="vno">v${run.sourceVersionNumber}</span>
+      <span class="why">${escapeHtml(summary)}</span>
+    </a>`;
+
+  return run.lines.map((l, i) => {
+    const cellGutter = i === 0
+      ? `<td class="gutter-cell" rowspan="${blockSize}">${gutter}</td>`
+      : "";
+    return `<tr>
+      ${cellGutter}
+      <td class="lineno">${l.lineNo}</td>
+      <td class="content"><pre>${escapeHtml(l.text || " ")}</pre></td>
+    </tr>`;
+  }).join("");
 }
 
 function prettyAnalyzer(a) {

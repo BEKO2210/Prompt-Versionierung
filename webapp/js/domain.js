@@ -435,3 +435,81 @@ function shapeMatches(expected, actual, path = "$") {
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Blame: per-line attribution.
+//
+// Walk the parent chain from the root to the target version. At each
+// transition, line-diff parent vs child and propagate attribution:
+//   equal   → keep parent's attribution
+//   added   → attributed to the child (this version introduced the line)
+//   modified→ attributed to the child (the line's content is now new)
+//   removed → drop (the line is no longer in the child)
+//
+// Returns an array, one entry per line of the target's body:
+//   [{ text, sourceVersionId, sourceVersionNumber }]
+//
+// Pure. O(n·m) per transition where n,m are the line counts; for typical
+// prompt sizes (hundreds of lines, dozens of versions in the chain) this
+// is sub-millisecond.
+// ---------------------------------------------------------------------------
+export function blame(versions, targetVersionId) {
+  const byId = new Map(versions.map((v) => [v.id, v]));
+  const target = byId.get(targetVersionId);
+  if (!target) return [];
+
+  // Build the chain root → … → target.
+  const chain = [];
+  let cur = target;
+  while (cur) {
+    chain.unshift(cur);
+    if (!cur.parentVersionId) break;
+    const parent = byId.get(cur.parentVersionId);
+    if (!parent || parent === cur) break; // defensive
+    cur = parent;
+  }
+
+  // Initialize from the root: every line is attributed to the root version.
+  const rootLines = (chain[0].body || "").split(/\r?\n/);
+  let lines = rootLines.map((text) => ({
+    text,
+    sourceVersionId: chain[0].id,
+    sourceVersionNumber: chain[0].number,
+  }));
+
+  // Walk transitions, propagating attribution.
+  for (let i = 1; i < chain.length; i++) {
+    const parent = chain[i - 1];
+    const child  = chain[i];
+    const d = diffText(parent.body || "", child.body || "");
+    const next = [];
+    for (const op of d.lines) {
+      if (op.op === "equal") {
+        const inherited = (op.leftIndex != null && lines[op.leftIndex])
+          ? lines[op.leftIndex]
+          : { sourceVersionId: child.id, sourceVersionNumber: child.number };
+        next.push({
+          text: op.right ?? op.left ?? "",
+          sourceVersionId: inherited.sourceVersionId,
+          sourceVersionNumber: inherited.sourceVersionNumber,
+        });
+      } else if (op.op === "added") {
+        next.push({
+          text: op.right ?? "",
+          sourceVersionId: child.id,
+          sourceVersionNumber: child.number,
+        });
+      } else if (op.op === "modified") {
+        next.push({
+          text: op.right ?? "",
+          sourceVersionId: child.id,
+          sourceVersionNumber: child.number,
+        });
+      }
+      // op.op === "removed" → drop it; the child no longer has this line
+    }
+    lines = next;
+  }
+
+  return lines;
+}
