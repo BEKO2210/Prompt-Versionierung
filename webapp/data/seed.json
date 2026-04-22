@@ -1,0 +1,183 @@
+{
+  "meta": {
+    "updatedAt": 1713878400000,
+    "revision": 1,
+    "schemaVersion": 1,
+    "author": "belkis"
+  },
+  "projects": [
+    {
+      "id": "prj_demo",
+      "slug": "demo",
+      "name": "Demo",
+      "description": "A seeded project showing a classifier prompt with four branches and six versions.",
+      "createdAt": 1713792000000,
+      "updatedAt": 1713878400000,
+      "prompts": [
+        {
+          "id": "prm_ticket",
+          "slug": "ticket-classifier",
+          "name": "Ticket classifier",
+          "description": "Classify support tickets into { billing · account · product · other }.",
+          "purpose": "Classify support tickets into one of: billing, account, product, other. Short, lowercase, deterministic.",
+          "canonicalBranchId": "br_main",
+          "createdAt": 1713792000000,
+          "updatedAt": 1713878400000,
+          "branches": [
+            { "id": "br_main",       "name": "main",          "headVersionId": "ver_2", "createdFromVersionId": null,    "status": "active",  "createdAt": 1713792000000, "color": "#6366f1" },
+            { "id": "br_few_shot",   "name": "few-shot",      "headVersionId": "ver_5", "createdFromVersionId": "ver_2", "status": "active",  "createdAt": 1713805000000, "color": "#10b981" },
+            { "id": "br_json",       "name": "json-output",   "headVersionId": "ver_4", "createdFromVersionId": "ver_3", "status": "active",  "createdAt": 1713820000000, "color": "#f59e0b" },
+            { "id": "br_refine",     "name": "refine-v5-2041","headVersionId": "ver_6", "createdFromVersionId": "ver_5", "status": "active",  "createdAt": 1713860000000, "color": "#a855f7" }
+          ],
+          "versions": [
+            {
+              "id": "ver_1", "promptId": "prm_ticket", "parentVersionId": null, "createdOnBranchId": "br_main",
+              "number": 1, "contentHash": "c415501aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "title": "First cut",
+              "body": "Classify the following support ticket into one of: billing, account, product, other.\n\nTicket:\n{{ticket}}",
+              "messages": null, "status": "approved",
+              "variables": [{ "name": "ticket", "description": "Raw ticket text", "type": "string", "required": true }],
+              "changeSummary": "Initial version", "rationale": "", "expectedImprovement": "",
+              "createdAt": 1713792000000, "createdBy": "belkis"
+            },
+            {
+              "id": "ver_2", "promptId": "prm_ticket", "parentVersionId": "ver_1", "createdOnBranchId": "br_main",
+              "number": 2, "contentHash": "b5dfa91aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "title": "With output format",
+              "body": "You are a careful, precise assistant that classifies customer-support tickets.\n\nClassify the ticket into exactly one of: billing, account, product, other.\nRespond with a single word, lowercase, no punctuation.\n\nTicket:\n{{ticket}}",
+              "messages": null, "status": "approved",
+              "variables": [{ "name": "ticket", "description": "Raw ticket text", "type": "string", "required": true }],
+              "changeSummary": "Add role framing and output-format rule", "rationale": "Answers were drifting to multi-word explanations.", "expectedImprovement": "Output is always a single lowercase word.",
+              "createdAt": 1713798000000, "createdBy": "belkis"
+            },
+            {
+              "id": "ver_3", "promptId": "prm_ticket", "parentVersionId": "ver_2", "createdOnBranchId": "br_few_shot",
+              "number": 3, "contentHash": "a71ccd2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "title": "Few-shot examples",
+              "body": "You are a careful, precise assistant that classifies customer-support tickets.\n\nClassify the ticket into exactly one of: billing, account, product, other.\nRespond with a single word, lowercase, no punctuation.\n\nExamples:\nTicket: \"I was charged twice for my subscription.\" → billing\nTicket: \"My password reset link never arrives.\" → account\nTicket: \"The export button crashes the app.\" → product\n\nTicket:\n{{ticket}}",
+              "messages": null, "status": "candidate",
+              "variables": [{ "name": "ticket", "description": "Raw ticket text", "type": "string", "required": true }],
+              "changeSummary": "Add three few-shot examples", "rationale": "Accuracy was drifting on edge cases.", "expectedImprovement": "Better adherence to the single-word format.",
+              "createdAt": 1713805000000, "createdBy": "belkis"
+            },
+            {
+              "id": "ver_4", "promptId": "prm_ticket", "parentVersionId": "ver_3", "createdOnBranchId": "br_json",
+              "number": 4, "contentHash": "8577991aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "title": "Return JSON with confidence",
+              "body": "You are a careful, precise assistant that classifies customer-support tickets.\n\nClassify the ticket into exactly one of: billing, account, product, other.\nReturn a JSON object with the following fields: { \"label\": string, \"confidence\": number }. Return valid JSON only.\n\nTicket:\n{{ticket}}",
+              "messages": null, "status": "experimental",
+              "variables": [{ "name": "ticket", "description": "Raw ticket text", "type": "string", "required": true }],
+              "changeSummary": "Switch to structured JSON output", "rationale": "Downstream consumer needs confidence scores.", "expectedImprovement": "Machine-parseable output with a confidence.",
+              "createdAt": 1713820000000, "createdBy": "belkis"
+            },
+            {
+              "id": "ver_5", "promptId": "prm_ticket", "parentVersionId": "ver_3", "createdOnBranchId": "br_few_shot",
+              "number": 5, "contentHash": "f0fdf7aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "title": "Tighten edge-case handling",
+              "body": "You are a careful, precise assistant that classifies customer-support tickets.\n\nClassify the ticket into exactly one of: billing, account, product, other.\nRespond with a single word, lowercase, no punctuation.\nIf multiple categories apply, pick the one most tied to the user's immediate blocker.\n\nExamples:\nTicket: \"I was charged twice for my subscription.\" → billing\nTicket: \"My password reset link never arrives.\" → account\nTicket: \"The export button crashes the app.\" → product\nTicket: \"Is there a student discount?\" → other\n\nTicket:\n{{ticket}}",
+              "messages": null, "status": "candidate",
+              "variables": [{ "name": "ticket", "description": "Raw ticket text", "type": "string", "required": true }],
+              "changeSummary": "Add an 'other' example + tie-breaker rule.",
+              "rationale": "'Is there a student discount?' was drifting between billing and other.",
+              "expectedImprovement": "Consistent 'other' handling for non-issue questions.",
+              "createdAt": 1713840000000, "createdBy": "belkis"
+            },
+            {
+              "id": "ver_6", "promptId": "prm_ticket", "parentVersionId": "ver_5", "createdOnBranchId": "br_refine",
+              "number": 6, "contentHash": "eccc6aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "title": "Refined: ambiguity rule",
+              "body": "You are a careful, precise assistant that classifies customer-support tickets.\n\nClassify the ticket into exactly one of: billing, account, product, other.\nRespond with a single word, lowercase, no punctuation.\nIf multiple categories apply, pick the one most tied to the user's immediate blocker.\nIf the ticket is unclear, respond with 'other' rather than guessing.\n\nExamples:\nTicket: \"I was charged twice for my subscription.\" → billing\nTicket: \"My password reset link never arrives.\" → account\nTicket: \"The export button crashes the app.\" → product\nTicket: \"Is there a student discount?\" → other\n\nTicket:\n{{ticket}}",
+              "messages": null, "status": "experimental",
+              "variables": [{ "name": "ticket", "description": "Raw ticket text", "type": "string", "required": true }],
+              "changeSummary": "Add explicit unclear-input rule.", "rationale": "A few ambiguous tickets were still being misclassified.", "expectedImprovement": "Fewer wrong guesses on ambiguous inputs.",
+              "createdAt": 1713860000000, "createdBy": "belkis"
+            }
+          ],
+          "runs": [
+            {
+              "id": "run_1", "versionId": "ver_5", "testCaseId": "tc_billing", "modelProfileId": "mp_mock",
+              "renderedPrompt": "…", "variableBindings": { "ticket": "I was charged twice for my subscription." },
+              "rawOutput": "billing", "structuredOutput": null,
+              "status": "succeeded", "error": null,
+              "temperature": 0.2, "maxTokens": 64, "latencyMs": 14,
+              "inputTokens": 210, "outputTokens": 2, "costEstimate": 0,
+              "startedAt": 1713865000000, "finishedAt": 1713865014, "createdAt": 1713865000000
+            },
+            {
+              "id": "run_2", "versionId": "ver_5", "testCaseId": "tc_login", "modelProfileId": "mp_mock",
+              "renderedPrompt": "…", "variableBindings": { "ticket": "I cannot log in, the reset link never arrives." },
+              "rawOutput": "account", "structuredOutput": null,
+              "status": "succeeded", "error": null,
+              "temperature": 0.2, "maxTokens": 64, "latencyMs": 12,
+              "inputTokens": 215, "outputTokens": 2, "costEstimate": 0,
+              "startedAt": 1713865100000, "finishedAt": 1713865112, "createdAt": 1713865100000
+            },
+            {
+              "id": "run_3", "versionId": "ver_5", "testCaseId": "tc_discount", "modelProfileId": "mp_mock",
+              "renderedPrompt": "…", "variableBindings": { "ticket": "Is there a student discount?" },
+              "rawOutput": "other", "structuredOutput": null,
+              "status": "succeeded", "error": null,
+              "temperature": 0.2, "maxTokens": 64, "latencyMs": 11,
+              "inputTokens": 208, "outputTokens": 2, "costEstimate": 0,
+              "startedAt": 1713865200000, "finishedAt": 1713865211, "createdAt": 1713865200000
+            },
+            {
+              "id": "run_4", "versionId": "ver_3", "testCaseId": "tc_billing", "modelProfileId": "mp_mock",
+              "renderedPrompt": "…", "variableBindings": { "ticket": "I was charged twice for my subscription." },
+              "rawOutput": "billing", "structuredOutput": null,
+              "status": "succeeded", "error": null,
+              "temperature": 0.2, "maxTokens": 64, "latencyMs": 13,
+              "inputTokens": 190, "outputTokens": 2, "costEstimate": 0,
+              "startedAt": 1713850000000, "finishedAt": 1713850013, "createdAt": 1713850000000
+            },
+            {
+              "id": "run_5", "versionId": "ver_3", "testCaseId": "tc_discount", "modelProfileId": "mp_mock",
+              "renderedPrompt": "…", "variableBindings": { "ticket": "Is there a student discount?" },
+              "rawOutput": "billing", "structuredOutput": null,
+              "status": "succeeded", "error": null,
+              "temperature": 0.2, "maxTokens": 64, "latencyMs": 12,
+              "inputTokens": 190, "outputTokens": 2, "costEstimate": 0,
+              "startedAt": 1713850200000, "finishedAt": 1713850212, "createdAt": 1713850200000
+            }
+          ],
+          "evaluations": [
+            { "id": "ev_1", "runId": "run_1", "evaluatorKind": "regex", "evaluatorRef": null, "rubricId": null, "score": 1, "passed": true,  "notes": "contains 'billing'",                     "createdAt": 1713865014 },
+            { "id": "ev_2", "runId": "run_2", "evaluatorKind": "regex", "evaluatorRef": null, "rubricId": null, "score": 1, "passed": true,  "notes": "contains 'account'",                     "createdAt": 1713865112 },
+            { "id": "ev_3", "runId": "run_3", "evaluatorKind": "regex", "evaluatorRef": null, "rubricId": null, "score": 1, "passed": true,  "notes": "contains 'other'",                       "createdAt": 1713865211 },
+            { "id": "ev_4", "runId": "run_4", "evaluatorKind": "regex", "evaluatorRef": null, "rubricId": null, "score": 1, "passed": true,  "notes": "contains 'billing'",                     "createdAt": 1713850013 },
+            { "id": "ev_5", "runId": "run_5", "evaluatorKind": "regex", "evaluatorRef": null, "rubricId": null, "score": 0, "passed": false, "notes": "expected 'other' but got 'billing'",     "createdAt": 1713850212 }
+          ],
+          "notes": [
+            { "id": "note_1", "versionId": "ver_5", "kind": "observation", "body": "Student-discount example fixed the drift we saw on ambiguous intents.", "author": "belkis", "createdAt": 1713865400000 }
+          ],
+          "suggestions": [],
+          "comparisons": [],
+          "lineageEdges": [
+            { "id": "edge_1", "fromVersionId": "ver_5", "toVersionId": "ver_6", "kind": "refinement" }
+          ],
+          "decisions": [
+            { "id": "dec_1", "kind": "promote", "versionId": "ver_2", "rationale": "Output-format rule made evaluations reliable.", "metadata": { "mode": "pointer" }, "decidedAt": 1713800000000, "decidedBy": "belkis" }
+          ]
+        }
+      ],
+      "modelProfiles": [
+        { "id": "mp_mock", "name": "mock-default", "provider": "mock", "modelId": "claude-opus-4-7", "defaultTemperature": 0.2, "defaultMaxTokens": 512 }
+      ],
+      "datasets": [
+        {
+          "id": "ds_support",
+          "name": "support-tickets",
+          "description": "A handful of labelled support tickets for classification tests.",
+          "testCases": [
+            { "id": "tc_billing",  "name": "billing-refund", "inputVariables": { "ticket": "I was charged twice for my subscription." }, "expectedOutput": "billing", "expectedKind": "contains", "assertions": null, "createdAt": 1713820000000 },
+            { "id": "tc_login",    "name": "login-issue",    "inputVariables": { "ticket": "I cannot log in, the reset link never arrives." }, "expectedOutput": "account", "expectedKind": "contains", "assertions": null, "createdAt": 1713820000000 },
+            { "id": "tc_discount", "name": "student-discount","inputVariables": { "ticket": "Is there a student discount?" }, "expectedOutput": "other", "expectedKind": "contains", "assertions": null, "createdAt": 1713820000000 }
+          ]
+        }
+      ],
+      "rubrics": [],
+      "tags": [],
+      "decisions": []
+    }
+  ]
+}

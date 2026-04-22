@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="description" content="Prompt Tree — versioning, branching, testing, refinement OS for prompts. Runs entirely in your browser." />
+  <title>Prompt Tree</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%23111827'/%3E%3Cpath d='M9 5v14m0-14h6m-6 7h4m-4 7h6' stroke='white' stroke-width='1.6' stroke-linecap='round' fill='none'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="./css/app.css" />
+</head>
+<body>
+  <!-- Live region for status messages -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- Modal mount point -->
+  <div id="modal-root"></div>
+
+  <!-- Command palette mount point -->
+  <div id="palette-root"></div>
+
+  <!-- App mount point -->
+  <main id="app" class="app"></main>
+
+  <!-- Loading splash, removed by main.js -->
+  <div id="splash">
+    <div class="splash-logo">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <rect width="24" height="24" rx="6" fill="currentColor" />
+        <path d="M9 5v14m0-14h6m-6 7h4m-4 7h6" stroke="white" stroke-width="1.6" stroke-linecap="round" fill="none" />
+      </svg>
+    </div>
+    <div class="splash-text">Prompt Tree</div>
+  </div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
