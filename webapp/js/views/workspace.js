@@ -15,6 +15,7 @@ export function renderWorkspace() {
       </a>
       <span class="topbar-spacer"></span>
       <button class="topbar-action" data-act="tour">${icon("info", { size: 13 })} Tutorial</button>
+      <a class="topbar-action" href="#/help">${icon("info", { size: 13 })} Help</a>
       <a class="topbar-action" href="#/settings">${icon("cog", { size: 13 })} Settings</a>
       <button class="topbar-action" data-act="export">${icon("download", { size: 13 })} Export</button>
       <button class="topbar-action" data-act="import">${icon("upload", { size: 13 })} Import</button>

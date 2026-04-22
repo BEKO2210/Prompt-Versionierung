@@ -902,6 +902,84 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
   margin-top: 14px;
 }
 
+/* ---------------------------------------------------------------------------
+   Help / reference page
+   --------------------------------------------------------------------------- */
+.help-page { max-width: 1100px; }
+.help-grid {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 36px;
+  align-items: start;
+}
+@media (max-width: 880px) {
+  .help-grid { grid-template-columns: 1fr; }
+  .help-toc { position: relative !important; top: 0 !important; }
+}
+.help-toc {
+  position: sticky;
+  top: 24px;
+  align-self: start;
+}
+.help-toc nav {
+  display: flex; flex-direction: column; gap: 2px;
+  border-left: 1px solid var(--border-soft);
+  padding-left: 12px;
+}
+.help-toc nav a {
+  display: block;
+  padding: 4px 0;
+  font-size: 12.5px;
+  color: var(--fg-muted);
+  border-left: 2px solid transparent;
+  margin-left: -14px;
+  padding-left: 12px;
+  transition: color .12s ease, border-color .12s ease;
+}
+.help-toc nav a:hover {
+  color: var(--fg);
+  border-left-color: var(--accent);
+}
+.help-content { min-width: 0; }
+.help-content > .markdown { font-size: 14.5px; line-height: 1.7; }
+.help-content .markdown h1 {
+  font-size: 26px; margin-top: 0; padding-bottom: 12px;
+}
+.help-content .markdown h2 {
+  font-size: 19px; margin-top: 1.8em; padding-top: 16px;
+  border-top: 1px solid var(--border-soft);
+}
+.help-content .markdown h3 { font-size: 15px; margin-top: 1.4em; }
+.help-content .markdown table {
+  width: 100%; border-collapse: collapse;
+  font-size: 13px; margin: 0.6em 0;
+}
+.help-content .markdown table th,
+.help-content .markdown table td {
+  border-bottom: 1px solid var(--border-soft);
+  padding: 7px 10px;
+  vertical-align: top;
+  text-align: left;
+}
+.help-content .markdown table th {
+  font-weight: 600; color: var(--fg);
+  background: var(--bg-sunk);
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.help-content .markdown pre {
+  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6;
+  background: var(--bg-sunk); border: 1px solid var(--border-soft);
+  border-radius: var(--radius); padding: 12px 14px;
+  overflow-x: auto;
+}
+.help-content .markdown blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 1em 0; padding: 4px 14px;
+  background: var(--accent-soft);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  color: var(--fg);
+}
+
 /* dark-mode refinements for status pills */
 [data-theme="dark"] .pill.draft { background: #1d2029; border-color: #2a2e3c; }
 [data-theme="dark"] .pill.experimental { background: rgba(59,130,246,.1); border-color: rgba(59,130,246,.25); color: #93c5fd; }

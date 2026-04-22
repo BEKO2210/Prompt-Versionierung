@@ -86,7 +86,9 @@ sub-bullets in place. Done items move to §2.
 | B2 | **Standardised run output format** | **done** | `webapp/js/runFormat.js` produces `prompt-tree-run/1` envelope per run + `prompt-tree-runs/1` bundle per version; right-side drawer for run detail with Copy/Download JSON; "Export all" on the Runs tab; full schema documented in `docs/run-format.md` (with stability guarantee) |
 | B3 | **Token counting + cost prediction** | **done** | `pricing.js` per-model rates ($/M tokens) with longest-prefix family match; `tokens.js` wraps js-tiktoken with a cache + chars/4 fallback for non-OpenAI; live "≈ N input tokens · ~$X" in Run modal; retro Token + Cost in Run drawer + new Cost column in Runs table |
 | B4 | **Tutorial onboarding** | **done** | `tour.js` 7-step spotlight over the real demo: workspace → activity feed → version tree → proposals → run modal → settings → keyboard shortcuts; navigates between routes, waits for selectors, dim+spotlight via box-shadow trick; auto-opens once on first visit (`localStorage` marker), Tutorial topbar button to replay |
-| B5 | **Info / Help page** | next | one-page reference: every concept, every keyboard shortcut |
+| B5 | **Info / Help page** | **done** | `/help` route; `webapp/js/views/help.js` with sticky TOC + 12 sections (concepts, workflow, shortcuts, providers, API keys, cost, JSON format, privacy, extending, why, troubleshooting); rendered via `marked`; Help link in workspace topbar; `?` hotkey jumps to Help from anywhere; Replay-tour button |
+
+**Phase B is complete.** All five items shipped. Three real LLM providers, secure key storage, schema-versioned JSON exports, token+cost prediction, onboarding tour, single-page reference.
 
 ### 3.B Phase C — Differentiators
 

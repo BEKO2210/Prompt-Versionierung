@@ -12,6 +12,7 @@ import { renderCompareView,   bindCompareView }   from "./views/compare.js";
 import { renderRefineView,    bindRefineView }    from "./views/refine.js";
 import { renderProposalView,  bindProposalView }  from "./views/proposal.js";
 import { renderSettingsView,  bindSettingsView }  from "./views/settings.js";
+import { renderHelpView,      bindHelpView }      from "./views/help.js";
 import { renderSearchView,    bindSearchView }    from "./views/search.js";
 import {
   renderDatasetsView, bindDatasetsView,
@@ -103,6 +104,7 @@ function pickView(route) {
     case "refine":    return { markup: renderRefineView(route),       bind: bindRefineView };
     case "proposal":  return { markup: renderProposalView(route),     bind: bindProposalView };
     case "settings":  return { markup: renderSettingsView(),          bind: bindSettingsView };
+    case "help":      return { markup: renderHelpView(),              bind: bindHelpView };
     case "search":    return { markup: renderSearchView(route),       bind: bindSearchView };
     case "datasets":  return { markup: renderDatasetsView(route),     bind: bindDatasetsView };
     case "models":    return { markup: renderModelsView(route),       bind: bindModelsView };
