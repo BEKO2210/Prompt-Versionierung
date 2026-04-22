@@ -513,3 +513,96 @@ export function blame(versions, targetVersionId) {
 
   return lines;
 }
+
+// ---------------------------------------------------------------------------
+// A/B statistics: Wilson score + Newcombe's method 10 for the CI of a
+// difference in two binomial proportions. Mirror of src/domain/stats.ts
+// for use inside the offline webapp.
+//
+// Why Wilson: normal (Wald) intervals lie for small n and near p∈{0,1}.
+// Why Newcombe 10: the standard Wilson-based CI for (p_B − p_A) on
+// unpaired proportions (Newcombe 1998, Stat Med 17). Closed-form, well-
+// calibrated, composes from two per-side Wilson intervals.
+// ---------------------------------------------------------------------------
+
+export function wilsonInterval(successes, n, z = 1.96) {
+  if (n <= 0) return { p: NaN, lower: NaN, upper: NaN, n: 0, successes: 0 };
+  const k = Math.max(0, Math.min(n, successes));
+  const p = k / n;
+  const z2 = z * z;
+  const denom = 1 + z2 / n;
+  const center = (p + z2 / (2 * n)) / denom;
+  const margin = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / denom;
+  return {
+    p,
+    lower: Math.max(0, center - margin),
+    upper: Math.min(1, center + margin),
+    n,
+    successes: k,
+  };
+}
+
+export function wilsonDiff(aSuccesses, aN, bSuccesses, bN, z = 1.96) {
+  const a = wilsonInterval(aSuccesses, aN, z);
+  const b = wilsonInterval(bSuccesses, bN, z);
+  if (aN === 0 || bN === 0) {
+    return { diff: NaN, lower: NaN, upper: NaN, direction: 0, significant: false, a, b };
+  }
+  const d = b.p - a.p;
+  const lowerPart = Math.sqrt((a.p - a.lower) ** 2 + (b.upper - b.p) ** 2);
+  const upperPart = Math.sqrt((a.upper - a.p) ** 2 + (b.p - b.lower) ** 2);
+  // Clamp to the theoretical bound [-1, +1]. Significance uses the raw
+  // bounds so a narrow win at the edge still registers correctly.
+  const rawLower = d - lowerPart;
+  const rawUpper = d + upperPart;
+  const significant = rawLower > 0 || rawUpper < 0;
+  const lower = Math.max(-1, rawLower);
+  const upper = Math.min(1, rawUpper);
+  const direction = significant ? (d > 0 ? 1 : -1) : 0;
+  return { diff: d, lower, upper, direction, significant, a, b };
+}
+
+// Given paired per-trial scores in [0,1], count successes (score ≥ threshold)
+// per side and run the full A/B analysis. Null scores are ignored on that
+// side (missing, not failing).
+export function abFromScores(pairs, threshold = 0.5, z = 1.96) {
+  let aN = 0, aK = 0, bN = 0, bK = 0;
+  for (const p of pairs) {
+    if (p.a != null) { aN += 1; if (p.a >= threshold) aK += 1; }
+    if (p.b != null) { bN += 1; if (p.b >= threshold) bK += 1; }
+  }
+  return wilsonDiff(aK, aN, bK, bN, z);
+}
+
+// ---------------------------------------------------------------------------
+// Approval gate on proposals.
+// Pure read-side — mirror of src/domain/approval.ts. Writes live in services.
+// ---------------------------------------------------------------------------
+
+// Normalise a possibly-missing threshold. Default 1 — reviewers must still
+// act, but a single +1 suffices.
+export function approvalsRequired(project) {
+  const n = project?.approvalsRequired;
+  if (typeof n !== "number" || !Number.isFinite(n) || n < 0) return 1;
+  return Math.floor(n);
+}
+
+export function hasApproved(proposal, actorId) {
+  if (!actorId) return false;
+  return (proposal.approvals || []).some((a) => a.author === actorId);
+}
+
+export function approvalStatus(proposal, project, currentActor) {
+  const have = (proposal.approvals || []).length;
+  const required = approvalsRequired(project);
+  const remaining = Math.max(0, required - have);
+  const canMerge = have >= required && proposal.status === "open";
+  const approvedByCurrent = hasApproved(proposal, currentActor);
+  const canApprove = Boolean(
+    currentActor &&
+    !approvedByCurrent &&
+    proposal.status === "open" &&
+    proposal.openedBy !== currentActor, // no self-approval
+  );
+  return { have, required, remaining, canMerge, approvedByCurrent, canApprove };
+}

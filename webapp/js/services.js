@@ -5,7 +5,7 @@ import { mutate, getState } from "./store.js";
 import {
   newId, slugify, contentHash, validateBranchName, suggestRefineBranchName,
   canTransition, analyze, propose, render, mockModelCall, evaluate,
-  checkPointerPromotion, isDescendant,
+  checkPointerPromotion, isDescendant, approvalsRequired as approvalGateThreshold,
 } from "./domain.js";
 
 // ---------------------------------------------------------------------------
@@ -436,6 +436,57 @@ export async function createRun({ promptId, versionId, modelProfileId, testCaseI
 function tryParseJSON(s) { try { return JSON.parse(s); } catch { return null; } }
 
 // ---------------------------------------------------------------------------
+// Batch run: fan out one version across N model profiles × M test cases
+// in one click. Thin wrapper around createRun — each child run is an
+// ordinary row that goes through the full running → terminal lifecycle,
+// records its own run_completed activity, and attaches evaluations.
+//
+// We intentionally don't introduce a "batch" entity: keeping each run a
+// first-class row is what makes the Trend / Compare / Evidence views
+// work without new plumbing. Callers receive a flat list of runIds and
+// per-cell errors they can surface.
+//
+// Concurrency: we fire createRun() for every cell in parallel. Each
+// createRun is already two-phase (insert running → await adapter →
+// finalize), so the UI paints N spinners immediately. Real-provider
+// adapters share the browser's HTTP concurrency limit; the mock adapter
+// resolves on the next tick.
+// ---------------------------------------------------------------------------
+export async function batchRun({
+  promptId, versionId, modelProfileIds, testCaseIds = null,
+  evaluators = ["regex"], variableBindings = {}, temperature, maxTokens,
+}) {
+  if (!modelProfileIds?.length) throw new Error("Select at least one model profile");
+  // null signals "ad-hoc only" — that's still one cell per model profile.
+  const tcs = testCaseIds?.length ? testCaseIds : [null];
+
+  const tasks = [];
+  for (const modelProfileId of modelProfileIds) {
+    for (const testCaseId of tcs) {
+      tasks.push({ modelProfileId, testCaseId });
+    }
+  }
+
+  const settled = await Promise.allSettled(
+    tasks.map((t) => createRun({
+      promptId, versionId,
+      modelProfileId: t.modelProfileId,
+      testCaseId: t.testCaseId,
+      variableBindings, evaluators, temperature, maxTokens,
+    }).then((id) => ({ ...t, runId: id }))),
+  );
+
+  const runIds = [];
+  const errors = [];
+  for (let i = 0; i < settled.length; i++) {
+    const r = settled[i];
+    if (r.status === "fulfilled") runIds.push(r.value.runId);
+    else errors.push({ ...tasks[i], error: r.reason?.message || String(r.reason) });
+  }
+  return { runIds, errors, total: tasks.length };
+}
+
+// ---------------------------------------------------------------------------
 // Refinement: diagnose → suggest → accept/reject
 // ---------------------------------------------------------------------------
 export function diagnoseAndPropose(promptId, versionId) {
@@ -690,14 +741,68 @@ export function resolveReviewComment({ promptId, proposalId, commentId }) {
   });
 }
 
+// Add the current actor's approval on a proposal. Idempotent — approving
+// twice is a no-op. Self-approval (opener approving their own proposal) is
+// rejected so the gate can't be bypassed by the author alone.
+export function approveProposal({ promptId, proposalId }) {
+  mutate((s) => {
+    const { prompt } = findPrompt(s, promptId);
+    const prop = (prompt.proposals || []).find((p) => p.id === proposalId);
+    if (!prop) throw new Error("Proposal not found");
+    if (prop.status !== "open") throw new Error("Proposal already " + prop.status);
+    const actor = s.meta?.currentActor || null;
+    if (!actor) throw new Error("No current user — set meta.currentActor");
+    if (prop.openedBy === actor) throw new Error("You can't approve your own proposal");
+    prop.approvals = prop.approvals || [];
+    if (prop.approvals.some((a) => a.author === actor)) return; // idempotent
+    prop.approvals.push({ id: newId("apr"), author: actor, createdAt: Date.now() });
+    pushActivity(prompt, "proposal_approved", { proposalId }, actor);
+  });
+}
+
+// Revoke the current actor's approval — a reviewer changed their mind.
+// No-op if no approval existed.
+export function unapproveProposal({ promptId, proposalId }) {
+  mutate((s) => {
+    const { prompt } = findPrompt(s, promptId);
+    const prop = (prompt.proposals || []).find((p) => p.id === proposalId);
+    if (!prop) throw new Error("Proposal not found");
+    if (prop.status !== "open") throw new Error("Proposal already " + prop.status);
+    const actor = s.meta?.currentActor || null;
+    if (!actor) return;
+    const before = (prop.approvals || []).length;
+    prop.approvals = (prop.approvals || []).filter((a) => a.author !== actor);
+    if (prop.approvals.length !== before) {
+      pushActivity(prompt, "proposal_unapproved", { proposalId }, actor);
+    }
+  });
+}
+
+// Per-project merge-gate threshold. n=0 ⇒ gate is always open.
+export function setApprovalsRequired({ projectId, n }) {
+  const v = Math.max(0, Math.floor(Number(n) || 0));
+  mutate((s) => {
+    const project = s.projects.find((p) => p.id === projectId);
+    if (!project) throw new Error("Project not found");
+    project.approvalsRequired = v;
+  });
+}
+
 // Merge a proposal: calls promote, then marks the proposal merged.
+// Enforces the per-project approval threshold. A threshold of 0 means
+// anyone can merge immediately.
 export async function mergeProposal({ promptId, proposalId, mode = "squashed", rationale }) {
   if (!rationale?.trim()) throw new Error("Merge rationale required");
   const s0 = getState();
-  const { prompt: p0 } = findPrompt(s0, promptId);
+  const { project: prj0, prompt: p0 } = findPrompt(s0, promptId);
   const prop = (p0.proposals || []).find((p) => p.id === proposalId);
   if (!prop) throw new Error("Proposal not found");
   if (prop.status !== "open") throw new Error("Proposal already " + prop.status);
+  const required = approvalGateThreshold(prj0);
+  const have = (prop.approvals || []).length;
+  if (have < required) {
+    throw new Error(`Needs ${required - have} more approval${required - have === 1 ? "" : "s"} to merge (${have}/${required})`);
+  }
 
   await promote({ promptId, versionId: prop.sourceVersionId, mode, rationale });
 
