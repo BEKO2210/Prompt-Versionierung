@@ -1,0 +1,466 @@
+// Prompt Tree — persistence schema.
+//
+// This schema encodes the domain documented in docs/02-domain.md.
+// Rules of the road (enforced in service layer, not DB):
+//   - PromptVersion rows are append-only except for status transitions.
+//   - `number` is assigned monotonically per prompt starting at 1.
+//   - Exactly one branch per prompt is canonical (Prompt.canonicalBranchId).
+//   - Every promotion / archive writes a PromptDecision.
+//
+// SQLite is the dev provider. The schema is Postgres-compatible; swap
+// `provider` below and `env("DATABASE_URL")` keeps working.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Project
+// ---------------------------------------------------------------------------
+
+model PromptProject {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  archivedAt  DateTime?
+
+  prompts       Prompt[]
+  tags          PromptTag[]
+  datasets      PromptDataset[]
+  modelProfiles ModelProfile[]
+  rubrics       PromptRubric[]
+
+  @@index([slug])
+}
+
+// ---------------------------------------------------------------------------
+// Prompt (logical identity)
+// ---------------------------------------------------------------------------
+
+model Prompt {
+  id                String   @id @default(cuid())
+  projectId         String
+  slug              String
+  name              String
+  description       String?
+  // The prompt's *intent*: what it is supposed to achieve. Used for
+  // "best version for this intent" retrieval.
+  purpose           String?
+  // Foreign key to the canonical branch. Optional only because branch rows
+  // and the prompt row are created in the same transaction (cycle break);
+  // the service layer guarantees it is set immediately after seed.
+  canonicalBranchId String?  @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  archivedAt        DateTime?
+
+  project           PromptProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  canonicalBranch   PromptBranch?    @relation("CanonicalBranch", fields: [canonicalBranchId], references: [id])
+  branches          PromptBranch[]   @relation("PromptBranches")
+  versions          PromptVersion[]
+  decisions         PromptDecision[]
+  comparisons       PromptComparison[]
+  tagAssignments    PromptTagAssignment[]
+
+  @@unique([projectId, slug])
+  @@index([projectId])
+}
+
+// ---------------------------------------------------------------------------
+// Branch (named mutable pointer)
+// ---------------------------------------------------------------------------
+
+model PromptBranch {
+  id                     String   @id @default(cuid())
+  promptId               String
+  name                   String
+  // Current head of the branch. Advances atomically when a new version is
+  // created on this branch.
+  headVersionId          String?
+  // The version this branch was forked from. Null on the root branch.
+  createdFromVersionId   String?
+  status                 String   @default("active") // active | archived
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  prompt              Prompt         @relation("PromptBranches", fields: [promptId], references: [id], onDelete: Cascade)
+  head                PromptVersion? @relation("BranchHead", fields: [headVersionId], references: [id])
+  createdFrom         PromptVersion? @relation("BranchForkPoint", fields: [createdFromVersionId], references: [id])
+  versionsCreatedHere PromptVersion[] @relation("VersionCreatedOnBranch")
+  canonicalOf         Prompt?        @relation("CanonicalBranch")
+
+  @@unique([promptId, name])
+  @@index([promptId])
+}
+
+// ---------------------------------------------------------------------------
+// Version (immutable content snapshot)
+// ---------------------------------------------------------------------------
+
+model PromptVersion {
+  id                   String   @id @default(cuid())
+  promptId             String
+  parentVersionId      String?
+  createdOnBranchId    String
+  // Monotonic per prompt, starting at 1.
+  number               Int
+  contentHash          String
+  title                String
+  // The template body. Variables referenced as {{name}}.
+  body                 String
+  // Optional structured messages (system/user/assistant). When present, body
+  // is a flattened view kept for search; `messages` is authoritative.
+  messages             String?  // JSON array
+  status               String   @default("draft") // draft|experimental|candidate|approved|deprecated|archived
+  modelHintId          String?
+  changeSummary        String?
+  rationale            String?
+  expectedImprovement  String?
+  createdAt            DateTime @default(now())
+  createdBy            String?
+
+  prompt              Prompt                      @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  parentVersion       PromptVersion?              @relation("VersionParent", fields: [parentVersionId], references: [id])
+  childVersions       PromptVersion[]             @relation("VersionParent")
+  createdOnBranch     PromptBranch                @relation("VersionCreatedOnBranch", fields: [createdOnBranchId], references: [id])
+  modelHint           ModelProfile?               @relation(fields: [modelHintId], references: [id])
+  variables           PromptTemplateVariable[]
+  notes               PromptNote[]
+  runs                PromptRun[]
+  suggestions         OptimizationSuggestion[]    @relation("SuggestionSource")
+  suggestionsProduced OptimizationSuggestion[]    @relation("SuggestionCreated")
+  outgoingEdges       PromptLineageEdge[]         @relation("LineageFrom")
+  incomingEdges       PromptLineageEdge[]         @relation("LineageTo")
+  branchHeadOf        PromptBranch[]              @relation("BranchHead")
+  branchForkedFrom    PromptBranch[]              @relation("BranchForkPoint")
+  decisions           PromptDecision[]
+  tagAssignments      PromptVersionTagAssignment[]
+  comparisonsAsA      PromptComparison[]          @relation("ComparisonA")
+  comparisonsAsB      PromptComparison[]          @relation("ComparisonB")
+  comparisonsPreferred PromptComparison[]         @relation("ComparisonPreferred")
+
+  @@unique([promptId, number])
+  @@index([promptId])
+  @@index([parentVersionId])
+  @@index([contentHash])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Template variables
+// ---------------------------------------------------------------------------
+
+model PromptTemplateVariable {
+  id           String  @id @default(cuid())
+  versionId    String
+  name         String
+  description  String?
+  // string | number | boolean | enum | json
+  type         String
+  required     Boolean @default(true)
+  defaultValue String? // JSON
+  enumValues   String? // JSON array
+
+  version PromptVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, name])
+  @@index([versionId])
+}
+
+// ---------------------------------------------------------------------------
+// Lineage edges (augment parentVersionId for merge / cherry-pick / refinement)
+// ---------------------------------------------------------------------------
+
+model PromptLineageEdge {
+  id             String   @id @default(cuid())
+  fromVersionId  String
+  toVersionId    String
+  // branch | merge | cherry_pick | refinement
+  kind           String
+  metadata       String?  // JSON
+  createdAt      DateTime @default(now())
+
+  fromVersion PromptVersion @relation("LineageFrom", fields: [fromVersionId], references: [id], onDelete: Cascade)
+  toVersion   PromptVersion @relation("LineageTo",   fields: [toVersionId],   references: [id], onDelete: Cascade)
+
+  @@unique([fromVersionId, toVersionId, kind])
+  @@index([fromVersionId])
+  @@index([toVersionId])
+}
+
+// ---------------------------------------------------------------------------
+// Tags
+// ---------------------------------------------------------------------------
+
+model PromptTag {
+  id          String  @id @default(cuid())
+  projectId   String
+  name        String
+  color       String?
+  description String?
+
+  project           PromptProject                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  promptAssignments PromptTagAssignment[]
+  versionAssignments PromptVersionTagAssignment[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model PromptTagAssignment {
+  id       String @id @default(cuid())
+  tagId    String
+  promptId String
+
+  tag    PromptTag @relation(fields: [tagId],    references: [id], onDelete: Cascade)
+  prompt Prompt    @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@unique([tagId, promptId])
+  @@index([promptId])
+}
+
+model PromptVersionTagAssignment {
+  id        String @id @default(cuid())
+  tagId     String
+  versionId String
+
+  tag     PromptTag     @relation(fields: [tagId],     references: [id], onDelete: Cascade)
+  version PromptVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([tagId, versionId])
+  @@index([versionId])
+}
+
+// ---------------------------------------------------------------------------
+// Notes
+// ---------------------------------------------------------------------------
+
+model PromptNote {
+  id        String   @id @default(cuid())
+  versionId String
+  // observation | issue | idea | warning
+  kind      String   @default("observation")
+  body      String
+  author    String?
+  createdAt DateTime @default(now())
+
+  version PromptVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([versionId])
+}
+
+// ---------------------------------------------------------------------------
+// Decisions (governance log)
+// ---------------------------------------------------------------------------
+
+model PromptDecision {
+  id         String   @id @default(cuid())
+  promptId   String
+  versionId  String?
+  // promote | demote | approve | deprecate | archive | set_canonical_branch
+  kind       String
+  rationale  String
+  metadata   String?  // JSON
+  decidedAt  DateTime @default(now())
+  decidedBy  String?
+
+  prompt  Prompt         @relation(fields: [promptId],  references: [id], onDelete: Cascade)
+  version PromptVersion? @relation(fields: [versionId], references: [id])
+
+  @@index([promptId])
+  @@index([versionId])
+}
+
+// ---------------------------------------------------------------------------
+// Model profiles
+// ---------------------------------------------------------------------------
+
+model ModelProfile {
+  id                  String  @id @default(cuid())
+  projectId           String
+  name                String
+  // anthropic | openai | mock | custom
+  provider            String
+  modelId             String
+  defaultTemperature  Float   @default(0.7)
+  defaultMaxTokens    Int     @default(1024)
+  settings            String? // JSON
+
+  project  PromptProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  runs     PromptRun[]
+  versionsHinted PromptVersion[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+// ---------------------------------------------------------------------------
+// Datasets and test cases
+// ---------------------------------------------------------------------------
+
+model PromptDataset {
+  id          String  @id @default(cuid())
+  projectId   String
+  name        String
+  description String?
+
+  project   PromptProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  testCases PromptTestCase[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model PromptTestCase {
+  id              String  @id @default(cuid())
+  datasetId       String?
+  name            String
+  // JSON map of variable name -> value
+  inputVariables  String
+  expectedOutput  String?
+  // contains | regex | exact | schema | rubric | none
+  expectedKind    String  @default("none")
+  // JSON array of additional assertions
+  assertions      String?
+  createdAt       DateTime @default(now())
+
+  dataset PromptDataset? @relation(fields: [datasetId], references: [id], onDelete: SetNull)
+  runs    PromptRun[]
+
+  @@index([datasetId])
+}
+
+// ---------------------------------------------------------------------------
+// Runs and evaluations
+// ---------------------------------------------------------------------------
+
+model PromptRun {
+  id                String    @id @default(cuid())
+  versionId         String
+  testCaseId        String?
+  modelProfileId    String
+  renderedPrompt    String
+  variableBindings  String    // JSON
+  rawOutput         String?
+  structuredOutput  String?   // JSON
+  // queued | running | succeeded | failed
+  status            String    @default("queued")
+  error             String?
+  temperature       Float
+  maxTokens         Int
+  latencyMs         Int?
+  inputTokens       Int?
+  outputTokens      Int?
+  costEstimate      Float?
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  createdAt         DateTime  @default(now())
+
+  version      PromptVersion       @relation(fields: [versionId],      references: [id], onDelete: Cascade)
+  testCase     PromptTestCase?     @relation(fields: [testCaseId],     references: [id], onDelete: SetNull)
+  modelProfile ModelProfile        @relation(fields: [modelProfileId], references: [id])
+  evaluations  PromptEvaluation[]
+
+  @@index([versionId])
+  @@index([testCaseId])
+  @@index([modelProfileId])
+  @@index([createdAt])
+}
+
+model PromptEvaluation {
+  id              String   @id @default(cuid())
+  runId           String
+  // human | llm_judge | regex | schema | similarity | rubric
+  evaluatorKind   String
+  // Depending on kind: modelProfileId (llm_judge) | rubricId (rubric) | null
+  evaluatorRef    String?
+  rubricId        String?
+  // Normalised 0..1. Null allowed for pass/fail-only evaluators.
+  score           Float?
+  passed          Boolean?
+  notes           String?
+  // JSON map of criterion -> { score, note }
+  criteriaScores  String?
+  createdAt       DateTime @default(now())
+  createdBy       String?
+
+  run    PromptRun     @relation(fields: [runId],    references: [id], onDelete: Cascade)
+  rubric PromptRubric? @relation(fields: [rubricId], references: [id])
+
+  @@index([runId])
+  @@index([rubricId])
+}
+
+// ---------------------------------------------------------------------------
+// Rubrics
+// ---------------------------------------------------------------------------
+
+model PromptRubric {
+  id          String  @id @default(cuid())
+  projectId   String
+  name        String
+  description String?
+  // JSON array of { name, description, weight, scale: { min, max } }
+  criteria    String
+
+  project     PromptProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  evaluations PromptEvaluation[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+// ---------------------------------------------------------------------------
+// Comparisons
+// ---------------------------------------------------------------------------
+
+model PromptComparison {
+  id                 String   @id @default(cuid())
+  promptId           String
+  versionAId         String
+  versionBId         String
+  notes              String?
+  preferredVersionId String?
+  createdAt          DateTime @default(now())
+  createdBy          String?
+
+  prompt            Prompt         @relation(fields: [promptId],           references: [id], onDelete: Cascade)
+  versionA          PromptVersion  @relation("ComparisonA",         fields: [versionAId],         references: [id])
+  versionB          PromptVersion  @relation("ComparisonB",         fields: [versionBId],         references: [id])
+  preferredVersion  PromptVersion? @relation("ComparisonPreferred", fields: [preferredVersionId], references: [id])
+
+  @@index([promptId])
+}
+
+// ---------------------------------------------------------------------------
+// Optimization suggestions (refinement engine)
+// ---------------------------------------------------------------------------
+
+model OptimizationSuggestion {
+  id                  String   @id @default(cuid())
+  versionId           String
+  // JSON array of diagnostic findings: { code, severity, detail, span? }
+  diagnosis           String
+  proposedBody        String
+  proposedVariables   String?  // JSON
+  proposedTitle       String?
+  rationale           String
+  // pending | accepted | rejected
+  status              String   @default("pending")
+  createdVersionId    String?
+  createdAt           DateTime @default(now())
+
+  version          PromptVersion  @relation("SuggestionSource",  fields: [versionId],        references: [id], onDelete: Cascade)
+  createdVersion   PromptVersion? @relation("SuggestionCreated", fields: [createdVersionId], references: [id])
+
+  @@index([versionId])
+  @@index([status])
+}

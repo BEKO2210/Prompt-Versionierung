@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  domain-tests:
+    name: Domain & adapter tests (pure)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci || npm install
+      - name: Prisma generate
+        run: npx prisma generate
+      - name: Unit tests (vitest)
+        run: npm run test
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci || npm install
+      - run: npx prisma generate
+      - run: npm run typecheck
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci || npm install
+      - run: npx prisma generate
+      - run: npm run lint
+
+  build:
+    name: Next.js build
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "file:./prisma/ci.db"
+      MODEL_PROVIDER: "mock"
+      DEFAULT_MODEL_ID: "claude-opus-4-7"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci || npm install
+      - name: Prisma generate & push (SQLite)
+        run: |
+          npx prisma generate
+          npx prisma db push --skip-generate
+      - name: Next.js build
+        run: npm run build

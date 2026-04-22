@@ -1,0 +1,39 @@
+# deps
+node_modules
+.pnp
+.pnp.js
+
+# next
+.next/
+out/
+next-env.d.ts
+
+# prisma
+prisma/*.db
+prisma/*.db-journal
+prisma/migrations/dev.db
+*.db
+*.db-journal
+
+# env
+.env
+.env.local
+.env.*.local
+
+# typescript
+*.tsbuildinfo
+
+# editor
+.vscode/
+.idea/
+.DS_Store
+
+# testing
+coverage/
+.vitest/
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
