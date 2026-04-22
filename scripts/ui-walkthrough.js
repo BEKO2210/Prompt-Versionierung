@@ -71,6 +71,12 @@ async function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     await snap("01-workspace");
     await checkOverlaps("workspace");
 
+    console.log("=== Settings ===");
+    await page.goto("http://localhost:4420/#/settings", { waitUntil: "networkidle" });
+    await wait(400);
+    await snap("23-settings");
+    await checkOverlaps("settings");
+
     console.log("=== Project dashboard ===");
     await page.goto("http://localhost:4420/#/p/demo", { waitUntil: "networkidle" });
     await wait(300);

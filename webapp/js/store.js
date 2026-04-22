@@ -10,7 +10,7 @@
 // saves, all open tabs reload the state and re-render.
 
 const DB_NAME = "prompt-tree";
-const DB_VERSION = 1;
+const DB_VERSION = 2;          // v2 adds the "secrets" object store (see secrets.js)
 const STORE = "kv";
 const KEY = "state";
 const LS_FALLBACK_KEY = "prompt-tree:state";
@@ -30,7 +30,8 @@ function openDB() {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+      if (!db.objectStoreNames.contains(STORE))     db.createObjectStore(STORE);
+      if (!db.objectStoreNames.contains("secrets")) db.createObjectStore("secrets");
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => {

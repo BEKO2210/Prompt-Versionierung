@@ -14,6 +14,7 @@ export function renderWorkspace() {
         Prompt Tree
       </a>
       <span class="topbar-spacer"></span>
+      <a class="topbar-action" href="#/settings">${icon("cog", { size: 13 })} Settings</a>
       <button class="topbar-action" data-act="export">${icon("download", { size: 13 })} Export</button>
       <button class="topbar-action" data-act="import">${icon("upload", { size: 13 })} Import</button>
       <button class="topbar-action" data-act="reset">${icon("reset", { size: 13 })} Reset demo</button>
