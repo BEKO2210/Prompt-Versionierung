@@ -78,12 +78,12 @@ sub-bullets in place. Done items move to §2.
 
 | # | Item | Status | Notes |
 |---|---|---|---|
-| B1 | **Real LLM provider integration with secure key storage** | in progress | split into B1.1 / B1.2 / B1.3 / B1.4 |
+| B1 | **Real LLM provider integration with secure key storage** | **done** | three real providers behind one adapter contract; mock fallback when key missing |
 | B1.1 | Settings UI for API keys + per-provider secrets in IndexedDB | **done** | `/settings` route, AES-GCM at-rest, separate `secrets` IDB store, never exported |
 | B1.2 | Real Anthropic adapter using `anthropic-dangerous-direct-browser-access` | **done** | adapter + registry under `webapp/js/adapters/models/`; `createRun` is two-phase async (running → succeeded/failed); run row records `mocked + mockedReason` when key missing; run modal shows live provider status |
 | B1.3 | Real OpenAI adapter | **done** | `adapters/models/openai.js`; standard chat completions; o-series uses `max_completion_tokens` and folds `system` into a leading user header; error-mapping mirrors Anthropic |
-| B1.4 | Real Google Gemini adapter | next | uses Gemini REST API directly; same adapter contract |
-| B2 | **Standardised run output format** | pending | every run stored as the same envelope across providers |
+| B1.4 | Real Google Gemini adapter | **done** | `adapters/models/gemini.js`; auth via `x-goog-api-key` header (never in URL); contents/parts shape; system → `systemInstruction`; safety-block → typed error |
+| B2 | **Standardised run output format** | next | every run already has the uniform `ModelResult` envelope across providers; B2 is to expose a one-click "Export run as JSON" + a stable shape for downstream tooling |
 | B3 | **Token counting via js-tiktoken** | pending | cost prediction in run dialog + retro on existing runs |
 | B4 | **Tutorial onboarding** | pending | first-run interactive tour over real demo data |
 | B5 | **Info / Help page** | pending | one-page reference: every concept, every keyboard shortcut |
