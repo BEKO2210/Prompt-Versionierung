@@ -4,11 +4,13 @@
 // tree, legend), main pane (version crumbs, title, action bar, tabs,
 // content: body + variables + metadata, analyzer signals).
 
-import { html, escapeHtml, icon, brandMark, modal, toast, statusPill, hashChip, scoreCell, relTime } from "../ui/components.js";
+import { html, escapeHtml, icon, brandMark, modal, toast, statusPill, hashChip, scoreCell, relTime, avatar, authorInline, resolveMember } from "../ui/components.js";
 import { getState, commit } from "../store.js";
 import * as services from "../services.js";
 import { buildTree, canTransition, STATUSES, analyze } from "../domain.js";
 import { navigate } from "../router.js";
+import { timeline } from "../ui/timeline.js";
+import { renderMarkdown } from "../ui/markdown.js";
 
 // --- entry points ---
 export function renderPromptView(route) {
@@ -282,14 +284,23 @@ function renderTabs({ prompt, version, tab }) {
   ).length;
   const decisions = (prompt.decisions || []).filter((d) => d.versionId === version?.id).length;
   const notes = (prompt.notes || []).filter((n) => n.versionId === version?.id).length;
-  const mk = (k, label, count) => `
+  const openProposals = (prompt.proposals || []).filter((p) => p.status === "open").length;
+  const releases = (prompt.releases || []).length;
+  const activities = (prompt.activities || []).length;
+  const hasReadme = !!(prompt.readme && prompt.readme.trim());
+
+  const mk = (k, label, count, badgeCls) => `
     <div class="tab ${tab === k ? "active" : ""}" data-tab="${k}">
-      <span>${label}</span>${count ? `<span class="badge">${count}</span>` : ""}
+      <span>${label}</span>${count ? `<span class="badge${badgeCls ? " " + badgeCls : ""}">${count}</span>` : ""}
     </div>`;
   return `
     <nav class="tabs">
       ${mk("content", "Content")}
+      ${hasReadme ? mk("readme", "README") : ""}
       ${mk("runs", "Runs &amp; Evidence", runs)}
+      ${mk("proposals", "Proposals", openProposals, "open")}
+      ${mk("releases", "Releases", releases)}
+      ${mk("activity", "Activity", activities)}
       ${mk("lineage", "Lineage", lineageEdges)}
       ${mk("decisions", "Decisions", decisions)}
       ${mk("notes", "Notes", notes)}
@@ -301,13 +312,121 @@ function renderTabs({ prompt, version, tab }) {
 function renderTabContent(ctx) {
   if (!ctx.version) return "";
   switch (ctx.tab) {
+    case "readme":    return renderReadmeTab(ctx);
     case "runs":      return renderRunsTab(ctx);
+    case "proposals": return renderProposalsTab(ctx);
+    case "releases":  return renderReleasesTab(ctx);
+    case "activity":  return renderActivityTab(ctx);
     case "lineage":   return renderLineageTab(ctx);
     case "decisions": return renderDecisionsTab(ctx);
     case "notes":     return renderNotesTab(ctx);
     case "content":
     default:          return renderContentTab(ctx);
   }
+}
+
+// --- Tab: README ---
+function renderReadmeTab({ project, prompt }) {
+  if (!prompt.readme) {
+    return `<div class="empty">
+      <div class="ttl">No README yet</div>
+      <div class="sub">A README is the place to document what this prompt does, its contract, and its shipping policy.</div>
+      <button class="btn accent" data-act="edit-readme">${icon("pencil", { size: 13 })} Write README</button>
+    </div>`;
+  }
+  return `
+    <div class="section-head">
+      <div class="eyebrow">Readme</div>
+      <button class="btn" data-act="edit-readme">${icon("pencil", { size: 13 })} Edit</button>
+    </div>
+    <div class="form-card">${renderMarkdown(prompt.readme)}</div>`;
+}
+
+// --- Tab: Activity ---
+function renderActivityTab({ project, prompt }) {
+  const events = services.listPromptActivity(prompt, { limit: 100 });
+  const ctx = {
+    projectSlug: project.slug, promptSlug: prompt.slug,
+    versionById: new Map(prompt.versions.map((v) => [v.id, v])),
+    branchNameById: new Map(prompt.branches.map((b) => [b.id, b.name])),
+  };
+  return `
+    <div class="section-head">
+      <div class="eyebrow">Activity</div>
+      <div class="meta">${events.length} event${events.length === 1 ? "" : "s"}</div>
+    </div>
+    ${timeline(events, ctx, project)}`;
+}
+
+// --- Tab: Releases ---
+function renderReleasesTab({ project, prompt }) {
+  const releases = services.listReleases(prompt);
+  const byId = new Map(prompt.versions.map((v) => [v.id, v]));
+  return `
+    <div class="section-head">
+      <div class="eyebrow">Releases</div>
+      <button class="btn accent" data-act="new-release">${icon("plus", { size: 13 })} New release</button>
+    </div>
+    ${releases.length === 0
+      ? `<div class="empty">
+          <div class="ttl">No releases yet</div>
+          <div class="sub">Tag a canonical version to mark a milestone. Release notes are auto-drafted from change summaries.</div>
+        </div>`
+      : releases.map((r) => {
+          const v = byId.get(r.versionId);
+          const author = resolveMember(project, r.createdBy);
+          return `
+          <div class="release-card" style="margin-bottom:12px">
+            <div class="date">
+              <div class="tag">${icon("crown", { size: 11 })} ${v ? `v${v.number}` : "?"}</div>
+              <div>${escapeHtml(relTime(r.createdAt))}</div>
+              <div style="margin-top:6px">${authorInline(author, 18)}</div>
+            </div>
+            <div>
+              <div class="name">${escapeHtml(r.name)}</div>
+              ${r.notes ? `<div class="notes">${escapeHtml(r.notes)}</div>` : ""}
+            </div>
+          </div>`;
+        }).join("")}`;
+}
+
+// --- Tab: Proposals ---
+function renderProposalsTab({ project, prompt }) {
+  const proposals = services.listProposals(prompt);
+  const byId = new Map(prompt.versions.map((v) => [v.id, v]));
+  return `
+    <div class="section-head">
+      <div class="eyebrow">Proposed changes</div>
+      <button class="btn accent" data-act="new-proposal">${icon("plus", { size: 13 })} New proposal</button>
+    </div>
+    ${proposals.length === 0
+      ? `<div class="empty">
+          <div class="ttl">No proposals yet</div>
+          <div class="sub">Instead of promoting directly, open a proposal to collect review and evidence before merging to <code>main</code>.</div>
+        </div>`
+      : `<div style="display:flex;flex-direction:column;gap:10px">
+          ${proposals.map((p) => {
+            const src = byId.get(p.sourceVersionId);
+            const author = resolveMember(project, p.openedBy);
+            const commentCount = (p.comments?.length || 0) + (p.reviewComments?.length || 0);
+            return `
+              <a class="prop-card" href="#/p/${escapeHtml(project.slug)}/p/${escapeHtml(prompt.slug)}/proposals/${escapeHtml(p.id)}" style="display:block">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px">
+                  <div style="min-width:0">
+                    <span class="prop-state ${escapeHtml(p.status)}">${escapeHtml(p.status)}</span>
+                    <span style="font-weight:600;font-size:14px;margin-left:8px">${escapeHtml(p.title)}</span>
+                  </div>
+                  <span class="prop-meta">${commentCount} comment${commentCount === 1 ? "" : "s"}</span>
+                </div>
+                <div class="prop-meta" style="margin-top:6px">
+                  ${authorInline(author, 16)}
+                  <span>opened ${escapeHtml(relTime(p.openedAt))}</span>
+                  <span>·</span>
+                  <span>source ${src ? `v${src.number} — ${escapeHtml(src.title)}` : "?"}</span>
+                </div>
+              </a>`;
+          }).join("")}
+        </div>`}`;
 }
 
 // --- Tab: Content (matches the screenshot exactly) ---
@@ -588,6 +707,15 @@ export function bindPromptView(root, route) {
 
   // --- notes tab quick add ---
   root.querySelector('[data-act="add-note"]')?.addEventListener("click", () => openNoteModal(ctx));
+
+  // --- readme ---
+  root.querySelector('[data-act="edit-readme"]')?.addEventListener("click", () => openReadmeModal(ctx));
+
+  // --- releases ---
+  root.querySelector('[data-act="new-release"]')?.addEventListener("click", () => openReleaseModal(ctx));
+
+  // --- proposals ---
+  root.querySelector('[data-act="new-proposal"]')?.addEventListener("click", () => openProposalModal(ctx));
 }
 
 // Expose a shortcut map for main.js keyboard handler.
@@ -756,6 +884,88 @@ function openNoteModal({ prompt, version }) {
       services.addNote({ promptId: prompt.id, versionId: version.id, kind: data.kind, body: data.body });
       await commit();
       toast("Note added");
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// README / Release / Proposal modals
+// ---------------------------------------------------------------------------
+function openReadmeModal({ project, prompt }) {
+  const current = prompt.readme || "";
+  modal({
+    title: "Edit README",
+    sub: "Supports markdown: headings, lists, **bold**, `code`, [links](#).",
+    body: `
+      <div class="row"><label>README (markdown)</label>
+        <textarea name="readme" style="min-height:280px">${escapeHtml(current)}</textarea></div>
+      <div class="helper">Tip: describe the contract, the shipping policy, and any special rules a new contributor must know.</div>`,
+    primary: "Save README", secondary: "Cancel",
+    onSubmit: async (data) => {
+      services.setPromptReadme({ promptId: prompt.id, readme: data.readme });
+      await commit();
+      toast("README saved");
+    },
+  });
+}
+
+function openReleaseModal({ project, prompt, version }) {
+  // Default name = next semver-ish. Notes auto-drafted from change summaries
+  // since the last release's version.
+  const releases = services.listReleases(prompt);
+  const lastReleaseVersionId = releases[0]?.versionId ?? null;
+  const suggestedNotes = services.draftReleaseNotes(prompt, version.id, lastReleaseVersionId)
+    || `- v${version.number}: ${version.changeSummary || "(no summary)"}`;
+  const suggestedName = releases.length
+    ? `v0.${releases.length + 1}`
+    : "v0.1";
+
+  modal({
+    title: `Release v${version.number}`,
+    sub: "Tag this version as a milestone. Release notes are auto-drafted from the change summaries since the last release.",
+    body: `
+      <div class="row"><label>Name <span class="req">*</span></label>
+        <input name="name" required value="${escapeAttr(suggestedName)}" placeholder="v1.0 — Production launch" /></div>
+      <div class="row"><label>Notes</label>
+        <textarea name="notes" style="min-height:160px">${escapeHtml(suggestedNotes)}</textarea></div>`,
+    primary: "Publish release", secondary: "Cancel",
+    onSubmit: async (data) => {
+      services.createRelease({
+        promptId: prompt.id, versionId: version.id,
+        name: data.name, notes: data.notes || "",
+      });
+      await commit();
+      toast("Release published");
+    },
+  });
+}
+
+function openProposalModal({ project, prompt, version }) {
+  const existing = (prompt.proposals || []).find(
+    (p) => p.status === "open" && p.sourceVersionId === version.id,
+  );
+  if (existing) {
+    toast("An open proposal already exists for this version");
+    navigate(`/p/${project.slug}/p/${prompt.slug}/proposals/${existing.id}`);
+    return;
+  }
+  modal({
+    title: "Open proposed change",
+    sub: `Proposes merging v${version.number} into the canonical branch. Review + evidence collects here before merge.`,
+    body: `
+      <div class="row"><label>Title <span class="req">*</span></label>
+        <input name="title" required value="${escapeAttr(`Promote v${version.number} — ${version.title}`)}" /></div>
+      <div class="row"><label>Description</label>
+        <textarea name="description" style="min-height:140px" placeholder="What changes? What evidence supports shipping it? Any risks?"></textarea></div>`,
+    primary: "Open proposal", secondary: "Cancel",
+    onSubmit: async (data) => {
+      const id = services.openProposal({
+        promptId: prompt.id, sourceVersionId: version.id,
+        title: data.title, description: data.description,
+      });
+      await commit();
+      toast("Proposal opened");
+      navigate(`/p/${project.slug}/p/${prompt.slug}/proposals/${id}`);
     },
   });
 }

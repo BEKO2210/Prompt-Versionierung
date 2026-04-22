@@ -120,6 +120,34 @@ async function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     await snap("09-refine");
     await checkOverlaps("refine");
 
+    console.log("=== README tab ===");
+    await page.goto("http://localhost:4420/#/p/demo/p/ticket-classifier/v/ver_5?tab=readme", { waitUntil: "networkidle" });
+    await wait(300);
+    await snap("18-readme");
+    await checkOverlaps("readme");
+
+    console.log("=== Activity tab ===");
+    await page.goto("http://localhost:4420/#/p/demo/p/ticket-classifier/v/ver_5?tab=activity", { waitUntil: "networkidle" });
+    await wait(300);
+    await snap("19-activity");
+    await checkOverlaps("activity");
+
+    console.log("=== Proposals tab ===");
+    await page.goto("http://localhost:4420/#/p/demo/p/ticket-classifier/v/ver_5?tab=proposals", { waitUntil: "networkidle" });
+    await wait(300);
+    await snap("20-proposals-tab");
+
+    console.log("=== Releases tab ===");
+    await page.goto("http://localhost:4420/#/p/demo/p/ticket-classifier/v/ver_5?tab=releases", { waitUntil: "networkidle" });
+    await wait(300);
+    await snap("21-releases-tab");
+
+    console.log("=== Proposal detail ===");
+    await page.goto("http://localhost:4420/#/p/demo/p/ticket-classifier/proposals/prop_1", { waitUntil: "networkidle" });
+    await wait(400);
+    await snap("22-proposal-detail");
+    await checkOverlaps("proposal");
+
     console.log("=== Search ===");
     await page.goto("http://localhost:4420/#/p/demo/search?q=billing", { waitUntil: "networkidle" });
     await wait(300);

@@ -1,9 +1,10 @@
 // Project dashboard — prompts grid for a given project.
 
-import { html, escapeHtml, icon, brandMark, modal, toast } from "../ui/components.js";
+import { html, escapeHtml, icon, brandMark, modal, toast, avatar } from "../ui/components.js";
 import { getState, commit } from "../store.js";
 import * as services from "../services.js";
 import { navigate } from "../router.js";
+import { timelineItem } from "../ui/timeline.js";
 
 export function renderProjectView(route) {
   const s = getState();
@@ -34,12 +35,45 @@ export function renderProjectView(route) {
         <div class="card"><div class="sub">Prompts</div><div style="font-size:28px;font-weight:600">${prompts.length}</div></div>
         <div class="card"><div class="sub">Versions</div><div style="font-size:28px;font-weight:600">${totalVersions}</div></div>
         <div class="card"><div class="sub">Branches</div><div style="font-size:28px;font-weight:600">${totalBranches}</div></div>
+        <div class="card"><div class="sub">Members</div>
+          <div style="font-size:28px;font-weight:600;display:flex;align-items:center;gap:10px">
+            ${project.members?.length || 0}
+            <span class="avatar-stack">${(project.members || []).slice(0, 4).map((m) => avatar(m, 22)).join("")}</span>
+          </div>
+        </div>
       </div>
 
-      <div class="eyebrow" style="margin-bottom:10px">Prompts</div>
-      ${prompts.length === 0 ? empty() : grid(project, prompts)}
+      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:20px;align-items:start">
+        <div>
+          <div class="eyebrow" style="margin-bottom:10px">Prompts</div>
+          ${prompts.length === 0 ? empty() : grid(project, prompts)}
+        </div>
+        <div>
+          <div class="eyebrow" style="margin-bottom:10px">Recent activity</div>
+          ${renderActivityCard(project)}
+        </div>
+      </div>
     </div>
   `;
+}
+
+function renderActivityCard(project) {
+  const events = services.listProjectActivity(project, { limit: 10 });
+  if (!events.length) {
+    return `<div class="empty"><div class="sub">No activity yet. Create a prompt or open a proposal.</div></div>`;
+  }
+  const rows = events.map((e) => {
+    const prompt = project.prompts.find((p) => p.id === e.promptId);
+    const ctx = {
+      projectSlug: project.slug,
+      promptSlug: e.promptSlug,
+      includePromptSuffix: true,
+      versionById: prompt ? new Map(prompt.versions.map((v) => [v.id, v])) : new Map(),
+      branchNameById: prompt ? new Map(prompt.branches.map((b) => [b.id, b.name])) : new Map(),
+    };
+    return timelineItem(e, ctx, project);
+  }).join("");
+  return `<div class="form-card" style="padding:8px 14px"><div class="timeline">${rows}</div></div>`;
 }
 
 function renderProjectTopbar(project) {

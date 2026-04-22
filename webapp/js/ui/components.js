@@ -119,5 +119,28 @@ export function relTime(t) {
   return new Date(t).toISOString().slice(0, 10);
 }
 
-// Re-export icon + brandMark for convenience.
+// ---------------------------------------------------------------------------
+// Member / avatar helpers
+// ---------------------------------------------------------------------------
+// Resolve a member by id from a project. Returns a synthetic unknown member
+// if not found, so callers never have to null-check.
+export function resolveMember(project, memberId) {
+  if (!project || !memberId) return { id: memberId || "mem_unknown", name: "Unknown", initials: "??", color: "#9ba2b3" };
+  const m = (project.members || []).find((x) => x.id === memberId);
+  return m || { id: memberId, name: memberId, initials: memberId.slice(4, 6).toUpperCase() || "??", color: "#9ba2b3" };
+}
+
+// Render a circular avatar with initials. Size in px.
+export function avatar(member, size = 20) {
+  const m = member || { initials: "??", color: "#9ba2b3", name: "" };
+  const fontSize = Math.max(9, Math.round(size * 0.42));
+  return `<span class="avatar" title="${escapeAttr(m.name || "")}" style="--sz:${size}px;--fg:#fff;--bg:${escapeAttr(m.color || "#9ba2b3")};font-size:${fontSize}px">${escapeHtml(m.initials || "??")}</span>`;
+}
+
+// Inline "<avatar> <name>" lockup.
+export function authorInline(member, size = 18) {
+  return `<span class="author">${avatar(member, size)}<span class="author-name">${escapeHtml(member?.name || "Unknown")}</span></span>`;
+}
+
+// Re-export icon + brandMark + member helpers.
 export { icon, brandMark };

@@ -2,8 +2,8 @@
   "meta": {
     "updatedAt": 1713878400000,
     "revision": 1,
-    "schemaVersion": 1,
-    "author": "belkis"
+    "schemaVersion": 2,
+    "currentActor": "mem_belkis"
   },
   "projects": [
     {
@@ -13,6 +13,11 @@
       "description": "A seeded project showing a classifier prompt with four branches and six versions.",
       "createdAt": 1713792000000,
       "updatedAt": 1713878400000,
+      "members": [
+        { "id": "mem_belkis", "name": "Belkis",  "initials": "BK", "color": "#6d28d9" },
+        { "id": "mem_ada",    "name": "Ada",     "initials": "AD", "color": "#0ea5e9" },
+        { "id": "mem_marco",  "name": "Marco",   "initials": "MC", "color": "#10b981" }
+      ],
       "prompts": [
         {
           "id": "prm_ticket",
@@ -20,6 +25,7 @@
           "name": "Ticket classifier",
           "description": "Classify support tickets into { billing · account · product · other }.",
           "purpose": "Classify support tickets into one of: billing, account, product, other. Short, lowercase, deterministic.",
+          "readme": "# Ticket classifier\n\nA production prompt that routes incoming support tickets into **billing**, **account**, **product**, or **other**. The canonical branch is optimised for *single-word, lowercase* output so the downstream router can switch on it without regex gymnastics.\n\n## Contract\n\n- **Input**: one ticket body (`{{ticket}}`).\n- **Output**: exactly one word — `billing` | `account` | `product` | `other`.\n- **Ambiguity rule**: when two labels plausibly apply, pick the one tied to the user's immediate blocker. When no label applies, return `other`.\n\n## Shipping policy\n\n- `main` is what the router calls in production.\n- Changes land via a **Proposed change** with the `support-tickets` dataset attached as evidence.\n- A release is cut whenever the canonical head changes. Release notes are generated from every intervening change summary.\n",
           "canonicalBranchId": "br_main",
           "createdAt": 1713792000000,
           "updatedAt": 1713878400000,
@@ -38,7 +44,7 @@
               "messages": null, "status": "approved",
               "variables": [{ "name": "ticket", "description": "Raw ticket text", "type": "string", "required": true }],
               "changeSummary": "Initial version", "rationale": "", "expectedImprovement": "",
-              "createdAt": 1713792000000, "createdBy": "belkis"
+              "createdAt": 1713792000000, "createdBy": "mem_belkis"
             },
             {
               "id": "ver_2", "promptId": "prm_ticket", "parentVersionId": "ver_1", "createdOnBranchId": "br_main",
@@ -48,7 +54,7 @@
               "messages": null, "status": "approved",
               "variables": [{ "name": "ticket", "description": "Raw ticket text", "type": "string", "required": true }],
               "changeSummary": "Add role framing and output-format rule", "rationale": "Answers were drifting to multi-word explanations.", "expectedImprovement": "Output is always a single lowercase word.",
-              "createdAt": 1713798000000, "createdBy": "belkis"
+              "createdAt": 1713798000000, "createdBy": "mem_belkis"
             },
             {
               "id": "ver_3", "promptId": "prm_ticket", "parentVersionId": "ver_2", "createdOnBranchId": "br_few_shot",
@@ -58,7 +64,7 @@
               "messages": null, "status": "candidate",
               "variables": [{ "name": "ticket", "description": "Raw ticket text", "type": "string", "required": true }],
               "changeSummary": "Add three few-shot examples", "rationale": "Accuracy was drifting on edge cases.", "expectedImprovement": "Better adherence to the single-word format.",
-              "createdAt": 1713805000000, "createdBy": "belkis"
+              "createdAt": 1713805000000, "createdBy": "mem_ada"
             },
             {
               "id": "ver_4", "promptId": "prm_ticket", "parentVersionId": "ver_3", "createdOnBranchId": "br_json",
@@ -68,7 +74,7 @@
               "messages": null, "status": "experimental",
               "variables": [{ "name": "ticket", "description": "Raw ticket text", "type": "string", "required": true }],
               "changeSummary": "Switch to structured JSON output", "rationale": "Downstream consumer needs confidence scores.", "expectedImprovement": "Machine-parseable output with a confidence.",
-              "createdAt": 1713820000000, "createdBy": "belkis"
+              "createdAt": 1713820000000, "createdBy": "mem_marco"
             },
             {
               "id": "ver_5", "promptId": "prm_ticket", "parentVersionId": "ver_3", "createdOnBranchId": "br_few_shot",
@@ -80,7 +86,7 @@
               "changeSummary": "Add an 'other' example + tie-breaker rule.",
               "rationale": "'Is there a student discount?' was drifting between billing and other.",
               "expectedImprovement": "Consistent 'other' handling for non-issue questions.",
-              "createdAt": 1713840000000, "createdBy": "belkis"
+              "createdAt": 1713840000000, "createdBy": "mem_ada"
             },
             {
               "id": "ver_6", "promptId": "prm_ticket", "parentVersionId": "ver_5", "createdOnBranchId": "br_refine",
@@ -90,7 +96,7 @@
               "messages": null, "status": "experimental",
               "variables": [{ "name": "ticket", "description": "Raw ticket text", "type": "string", "required": true }],
               "changeSummary": "Add explicit unclear-input rule.", "rationale": "A few ambiguous tickets were still being misclassified.", "expectedImprovement": "Fewer wrong guesses on ambiguous inputs.",
-              "createdAt": 1713860000000, "createdBy": "belkis"
+              "createdAt": 1713860000000, "createdBy": "mem_belkis"
             }
           ],
           "runs": [
@@ -148,7 +154,7 @@
             { "id": "ev_5", "runId": "run_5", "evaluatorKind": "regex", "evaluatorRef": null, "rubricId": null, "score": 0, "passed": false, "notes": "expected 'other' but got 'billing'",     "createdAt": 1713850212 }
           ],
           "notes": [
-            { "id": "note_1", "versionId": "ver_5", "kind": "observation", "body": "Student-discount example fixed the drift we saw on ambiguous intents.", "author": "belkis", "createdAt": 1713865400000 }
+            { "id": "note_1", "versionId": "ver_5", "kind": "observation", "body": "Student-discount example fixed the drift we saw on ambiguous intents.", "author": "mem_belkis", "createdAt": 1713865400000 }
           ],
           "suggestions": [],
           "comparisons": [],
@@ -156,7 +162,59 @@
             { "id": "edge_1", "fromVersionId": "ver_5", "toVersionId": "ver_6", "kind": "refinement" }
           ],
           "decisions": [
-            { "id": "dec_1", "kind": "promote", "versionId": "ver_2", "rationale": "Output-format rule made evaluations reliable.", "metadata": { "mode": "pointer" }, "decidedAt": 1713800000000, "decidedBy": "belkis" }
+            { "id": "dec_1", "kind": "promote", "versionId": "ver_2", "rationale": "Output-format rule made evaluations reliable.", "metadata": { "mode": "pointer" }, "decidedAt": 1713800000000, "decidedBy": "mem_belkis" }
+          ],
+          "activities": [
+            { "id": "act_1",  "kind": "version_created",    "actorId": "mem_belkis", "timestamp": 1713792000000, "metadata": { "versionId": "ver_1", "branchId": "br_main",     "number": 1 } },
+            { "id": "act_2",  "kind": "version_created",    "actorId": "mem_belkis", "timestamp": 1713798000000, "metadata": { "versionId": "ver_2", "branchId": "br_main",     "number": 2 } },
+            { "id": "act_3",  "kind": "version_promoted",   "actorId": "mem_belkis", "timestamp": 1713800000000, "metadata": { "versionId": "ver_2", "mode": "pointer", "rationale": "Output-format rule made evaluations reliable." } },
+            { "id": "act_4",  "kind": "release_published",  "actorId": "mem_belkis", "timestamp": 1713800500000, "metadata": { "releaseId": "rel_1", "versionId": "ver_2", "name": "v0.1 — first shippable" } },
+            { "id": "act_5",  "kind": "branch_created",     "actorId": "mem_ada",    "timestamp": 1713805000000, "metadata": { "branchId": "br_few_shot", "fromVersionId": "ver_2", "name": "few-shot" } },
+            { "id": "act_6",  "kind": "version_created",    "actorId": "mem_ada",    "timestamp": 1713805000000, "metadata": { "versionId": "ver_3", "branchId": "br_few_shot", "number": 3 } },
+            { "id": "act_7",  "kind": "branch_created",     "actorId": "mem_marco",  "timestamp": 1713820000000, "metadata": { "branchId": "br_json",     "fromVersionId": "ver_3", "name": "json-output" } },
+            { "id": "act_8",  "kind": "version_created",    "actorId": "mem_marco",  "timestamp": 1713820000000, "metadata": { "versionId": "ver_4", "branchId": "br_json",     "number": 4 } },
+            { "id": "act_9",  "kind": "version_created",    "actorId": "mem_ada",    "timestamp": 1713840000000, "metadata": { "versionId": "ver_5", "branchId": "br_few_shot", "number": 5 } },
+            { "id": "act_10", "kind": "run_completed",      "actorId": "mem_ada",    "timestamp": 1713865000000, "metadata": { "runId": "run_1", "versionId": "ver_5", "score": 1 } },
+            { "id": "act_11", "kind": "run_completed",      "actorId": "mem_ada",    "timestamp": 1713865100000, "metadata": { "runId": "run_2", "versionId": "ver_5", "score": 1 } },
+            { "id": "act_12", "kind": "run_completed",      "actorId": "mem_ada",    "timestamp": 1713865200000, "metadata": { "runId": "run_3", "versionId": "ver_5", "score": 1 } },
+            { "id": "act_13", "kind": "note_added",         "actorId": "mem_belkis", "timestamp": 1713865400000, "metadata": { "noteId": "note_1", "versionId": "ver_5", "excerpt": "Student-discount example fixed the drift…" } },
+            { "id": "act_14", "kind": "branch_created",     "actorId": "mem_belkis", "timestamp": 1713860000000, "metadata": { "branchId": "br_refine",   "fromVersionId": "ver_5", "name": "refine-v5-2041" } },
+            { "id": "act_15", "kind": "version_created",    "actorId": "mem_belkis", "timestamp": 1713860000000, "metadata": { "versionId": "ver_6", "branchId": "br_refine",   "number": 6 } },
+            { "id": "act_16", "kind": "proposal_opened",    "actorId": "mem_ada",    "timestamp": 1713866000000, "metadata": { "proposalId": "prop_1", "sourceVersionId": "ver_5", "title": "Promote v5 — 'other' + tie-breaker rule" } },
+            { "id": "act_17", "kind": "proposal_commented", "actorId": "mem_marco",  "timestamp": 1713870000000, "metadata": { "proposalId": "prop_1", "excerpt": "Evidence looks good — three green, no regressions vs. v3." } }
+          ],
+          "proposals": [
+            {
+              "id": "prop_1",
+              "sourceVersionId": "ver_5",
+              "targetBranchId": "br_main",
+              "title": "Promote v5 — 'other' + tie-breaker rule",
+              "description": "Ships the few-shot branch's edge-case fix onto main. All three labelled test cases score 100 %; v3 missed the student-discount case. Proposed mode: squashed so main keeps a clean linear history.",
+              "status": "open",
+              "openedAt": 1713866000000,
+              "openedBy": "mem_ada",
+              "closedAt": null,
+              "closedBy": null,
+              "createdVersionId": null,
+              "comments": [
+                { "id": "pc_1", "author": "mem_marco",  "createdAt": 1713870000000, "body": "Evidence looks good — three green, no regressions vs. v3. +1 on squashed merge so main stays linear." },
+                { "id": "pc_2", "author": "mem_belkis", "createdAt": 1713873000000, "body": "Agreed. Let's wait for one more eye on the examples list before merging." }
+              ],
+              "reviewComments": [
+                { "id": "rc_1", "side": "b", "lineIndex": 3,  "author": "mem_marco",  "createdAt": 1713870500000, "body": "Nice tightening. Consider dropping the comma before 'pick' to match the rest of the prompt's voice.", "resolvedAt": null },
+                { "id": "rc_2", "side": "b", "lineIndex": 10, "author": "mem_belkis", "createdAt": 1713871000000, "body": "Could we also add an 'I want to cancel my plan' example? Currently misrouted as product.", "resolvedAt": null }
+              ]
+            }
+          ],
+          "releases": [
+            {
+              "id": "rel_1",
+              "versionId": "ver_2",
+              "name": "v0.1 — first shippable",
+              "notes": "First prompt that meets the single-word output contract. Replaces ad-hoc multi-word answers. Used by the router from 2024-04-23.",
+              "createdAt": 1713800500000,
+              "createdBy": "mem_belkis"
+            }
           ]
         }
       ],

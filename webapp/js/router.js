@@ -21,6 +21,7 @@ const routes = [
   { re: /^\/p\/([^/]+)\/search\/?$/, name: "search" },
   { re: /^\/p\/([^/]+)\/p\/([^/]+)\/compare\/?$/, name: "compare", params: ["projectSlug","promptSlug"] },
   { re: /^\/p\/([^/]+)\/p\/([^/]+)\/refine\/([^/]+)\/?$/, name: "refine", params: ["projectSlug","promptSlug","versionId"] },
+  { re: /^\/p\/([^/]+)\/p\/([^/]+)\/proposals\/([^/]+)\/?$/, name: "proposal", params: ["projectSlug","promptSlug","proposalId"] },
   { re: /^\/p\/([^/]+)\/p\/([^/]+)\/v\/([^/]+)\/?$/, name: "prompt", params: ["projectSlug","promptSlug","versionId"] },
   { re: /^\/p\/([^/]+)\/p\/([^/]+)\/?$/, name: "prompt", params: ["projectSlug","promptSlug"] },
 ];
@@ -41,8 +42,9 @@ function parse() {
       if (r.name === "prompt") {
         path.projectSlug = m[1]; path.promptSlug = m[2]; path.versionId = m[3] || null;
       }
-      if (r.name === "compare") { path.projectSlug = m[1]; path.promptSlug = m[2]; }
-      if (r.name === "refine")  { path.projectSlug = m[1]; path.promptSlug = m[2]; path.versionId = m[3]; }
+      if (r.name === "compare")  { path.projectSlug = m[1]; path.promptSlug = m[2]; }
+      if (r.name === "refine")   { path.projectSlug = m[1]; path.promptSlug = m[2]; path.versionId = m[3]; }
+      if (r.name === "proposal") { path.projectSlug = m[1]; path.promptSlug = m[2]; path.proposalId = m[3]; }
       return { name: r.name, path, query: Object.fromEntries(params) };
     }
   }

@@ -124,6 +124,7 @@ export function createBranch({ promptId, name, fromVersionId }) {
       status: "active", createdAt: Date.now(), color: pickColor(prompt.branches.length),
     });
     prompt.updatedAt = Date.now();
+    pushActivity(prompt, "branch_created", { branchId, fromVersionId: fork.id, name }, s.meta?.currentActor);
   });
   return branchId;
 }
@@ -145,6 +146,37 @@ export function archiveBranch({ promptId, branchId, rationale }) {
 
 const PALETTE = ["#6366f1","#10b981","#f59e0b","#a855f7","#ec4899","#0ea5e9","#22c55e","#f43f5e","#14b8a6","#eab308"];
 function pickColor(i) { return PALETTE[i % PALETTE.length]; }
+
+// ---------------------------------------------------------------------------
+// Activity log — single append-only list per prompt. Every state-changing
+// service records one entry. Readers render it as a timeline.
+// ---------------------------------------------------------------------------
+function pushActivity(prompt, kind, metadata, actorId) {
+  prompt.activities = prompt.activities || [];
+  prompt.activities.push({
+    id: newId("act"), kind,
+    actorId: actorId || null,
+    timestamp: Date.now(),
+    metadata: metadata || {},
+  });
+}
+
+export function listProjectActivity(project, { limit = 25 } = {}) {
+  const out = [];
+  for (const pr of project.prompts || []) {
+    for (const a of pr.activities || []) {
+      out.push({ ...a, promptId: pr.id, promptSlug: pr.slug, promptName: pr.name });
+    }
+  }
+  out.sort((a, b) => b.timestamp - a.timestamp);
+  return out.slice(0, limit);
+}
+
+export function listPromptActivity(prompt, { limit = 80 } = {}) {
+  const out = [...(prompt.activities || [])];
+  out.sort((a, b) => b.timestamp - a.timestamp);
+  return out.slice(0, limit);
+}
 
 // ---------------------------------------------------------------------------
 // Versions
@@ -170,16 +202,20 @@ export async function createVersion({
 
     versionId = newId("ver");
     const now = Date.now();
+    const actor = s.meta?.currentActor || null;
     prompt.versions.push({
       id: versionId, promptId, parentVersionId, createdOnBranchId: branchId,
       number: nextVersionNumber(prompt), contentHash: hash,
       title: title.trim(), body, messages,
       variables, status,
       changeSummary, rationale, expectedImprovement,
-      createdAt: now, createdBy: s.meta?.author || null,
+      createdAt: now, createdBy: actor,
     });
     branch.headVersionId = versionId;
     prompt.updatedAt = now;
+    pushActivity(prompt, "version_created",
+      { versionId, branchId, number: prompt.versions.at(-1).number, title: title.trim(), changeSummary },
+      actor);
   });
   return versionId;
 }
@@ -213,13 +249,15 @@ export async function promote({ promptId, versionId, mode = "pointer", rationale
       const cb = p.branches.find((b) => b.id === p.canonicalBranchId);
       const prevHead = cb.headVersionId;
       cb.headVersionId = versionId;
+      const actor = d.meta?.currentActor || null;
       p.decisions = p.decisions || [];
       p.decisions.push({
         id: newId("dec"), kind: "promote", versionId, rationale,
         metadata: { mode: "pointer", branchId: cb.id, previousHead: prevHead },
-        decidedAt: Date.now(), decidedBy: d.meta?.author || null,
+        decidedAt: Date.now(), decidedBy: actor,
       });
       p.updatedAt = Date.now();
+      pushActivity(p, "version_promoted", { versionId, mode: "pointer", rationale }, actor);
     });
     return;
   }
@@ -231,6 +269,7 @@ export async function promote({ promptId, versionId, mode = "pointer", rationale
     const cb = p.branches.find((b) => b.id === p.canonicalBranchId);
     const newId_ = newId("ver");
     const now = Date.now();
+    const actor = d.meta?.currentActor || null;
     p.versions.push({
       id: newId_, promptId, parentVersionId: cb.headVersionId, createdOnBranchId: cb.id,
       number: nextVersionNumber(p), contentHash: hash,
@@ -239,7 +278,7 @@ export async function promote({ promptId, versionId, mode = "pointer", rationale
       variables: structuredClone(target.variables),
       changeSummary: `Promoted from v${target.number} (squashed)`,
       rationale, expectedImprovement: "",
-      createdAt: now, createdBy: d.meta?.author || null,
+      createdAt: now, createdBy: actor,
     });
     cb.headVersionId = newId_;
     p.lineageEdges = p.lineageEdges || [];
@@ -248,9 +287,11 @@ export async function promote({ promptId, versionId, mode = "pointer", rationale
     p.decisions.push({
       id: newId("dec"), kind: "promote", versionId: newId_, rationale,
       metadata: { mode: "squashed", sourceVersionId: target.id },
-      decidedAt: now, decidedBy: d.meta?.author || null,
+      decidedAt: now, decidedBy: actor,
     });
     p.updatedAt = now;
+    pushActivity(p, "version_promoted",
+      { versionId: newId_, mode: "squashed", sourceVersionId: target.id, rationale }, actor);
   });
 }
 
@@ -261,12 +302,15 @@ export function addNote({ promptId, versionId, kind = "observation", body, autho
   if (!body?.trim()) throw new Error("Note body required");
   mutate((s) => {
     const { prompt } = findPrompt(s, promptId);
+    const actor = author || s.meta?.currentActor || null;
     prompt.notes = prompt.notes || [];
+    const noteId = newId("note");
     prompt.notes.push({
-      id: newId("note"), versionId, kind, body: body.trim(),
-      author: author || s.meta?.author || null,
-      createdAt: Date.now(),
+      id: noteId, versionId, kind, body: body.trim(),
+      author: actor, createdAt: Date.now(),
     });
+    pushActivity(prompt, "note_added",
+      { noteId, versionId, kind, excerpt: body.trim().slice(0, 80) }, actor);
   });
 }
 
@@ -319,6 +363,8 @@ export function createRun({ promptId, versionId, modelProfileId, testCaseId = nu
       costEstimate: 0,
       startedAt: Date.now() - elapsed, finishedAt: Date.now(), createdAt: Date.now(),
     });
+    let meanScore = null;
+    const scored = [];
     for (const e of evals) {
       p.evaluations = p.evaluations || [];
       p.evaluations.push({
@@ -327,7 +373,12 @@ export function createRun({ promptId, versionId, modelProfileId, testCaseId = nu
         score: e.score, passed: e.passed, notes: e.notes,
         createdAt: Date.now(),
       });
+      if (e.score != null) scored.push(e.score);
     }
+    if (scored.length) meanScore = scored.reduce((a, b) => a + b, 0) / scored.length;
+    pushActivity(p, "run_completed",
+      { runId, versionId, score: meanScore, testCaseId },
+      s.meta?.currentActor);
   });
   return runId;
 }
@@ -511,4 +562,203 @@ export function pairedRunEvidence(prompt, aId, bId) {
   const A = agg(aId), B = agg(bId);
   const keys = new Set([...A.keys(), ...B.keys()]);
   return [...keys].map((k) => ({ key: k, a: A.get(k) ?? null, b: B.get(k) ?? null }));
+}
+
+// ---------------------------------------------------------------------------
+// Proposed Changes (PR-like flow): open a proposal from a source version,
+// collect discussion + inline review comments, then merge (promotes) or
+// decline (logs a decision). All mutations record activity.
+// ---------------------------------------------------------------------------
+export function openProposal({ promptId, sourceVersionId, title, description }) {
+  if (!title?.trim()) throw new Error("title required");
+  if (!sourceVersionId) throw new Error("sourceVersionId required");
+  let proposalId;
+  mutate((s) => {
+    const { prompt } = findPrompt(s, promptId);
+    const src = prompt.versions.find((v) => v.id === sourceVersionId);
+    if (!src) throw new Error("Source version not found");
+    if ((prompt.proposals || []).some((p) =>
+      p.status === "open" && p.sourceVersionId === sourceVersionId)) {
+      throw new Error("An open proposal already exists for this version");
+    }
+    const actor = s.meta?.currentActor || null;
+    proposalId = newId("prop");
+    prompt.proposals = prompt.proposals || [];
+    prompt.proposals.push({
+      id: proposalId, sourceVersionId,
+      targetBranchId: prompt.canonicalBranchId,
+      title: title.trim(), description: (description || "").trim(),
+      status: "open", openedAt: Date.now(), openedBy: actor,
+      closedAt: null, closedBy: null, createdVersionId: null,
+      comments: [], reviewComments: [],
+    });
+    pushActivity(prompt, "proposal_opened", { proposalId, sourceVersionId, title: title.trim() }, actor);
+  });
+  return proposalId;
+}
+
+export function addProposalComment({ promptId, proposalId, body }) {
+  if (!body?.trim()) throw new Error("Comment body required");
+  mutate((s) => {
+    const { prompt } = findPrompt(s, promptId);
+    const prop = (prompt.proposals || []).find((p) => p.id === proposalId);
+    if (!prop) throw new Error("Proposal not found");
+    const actor = s.meta?.currentActor || null;
+    prop.comments = prop.comments || [];
+    prop.comments.push({
+      id: newId("pc"), author: actor, createdAt: Date.now(), body: body.trim(),
+    });
+    pushActivity(prompt, "proposal_commented",
+      { proposalId, excerpt: body.trim().slice(0, 120) }, actor);
+  });
+}
+
+export function addReviewComment({ promptId, proposalId, side, lineIndex, body }) {
+  if (!body?.trim()) throw new Error("Comment body required");
+  if (side !== "a" && side !== "b") throw new Error("side must be 'a' or 'b'");
+  mutate((s) => {
+    const { prompt } = findPrompt(s, promptId);
+    const prop = (prompt.proposals || []).find((p) => p.id === proposalId);
+    if (!prop) throw new Error("Proposal not found");
+    prop.reviewComments = prop.reviewComments || [];
+    prop.reviewComments.push({
+      id: newId("rc"), side, lineIndex,
+      author: s.meta?.currentActor || null, createdAt: Date.now(),
+      body: body.trim(), resolvedAt: null,
+    });
+  });
+}
+
+export function resolveReviewComment({ promptId, proposalId, commentId }) {
+  mutate((s) => {
+    const { prompt } = findPrompt(s, promptId);
+    const prop = (prompt.proposals || []).find((p) => p.id === proposalId);
+    if (!prop) throw new Error("Proposal not found");
+    const rc = (prop.reviewComments || []).find((c) => c.id === commentId);
+    if (rc) rc.resolvedAt = Date.now();
+  });
+}
+
+// Merge a proposal: calls promote, then marks the proposal merged.
+export async function mergeProposal({ promptId, proposalId, mode = "squashed", rationale }) {
+  if (!rationale?.trim()) throw new Error("Merge rationale required");
+  const s0 = getState();
+  const { prompt: p0 } = findPrompt(s0, promptId);
+  const prop = (p0.proposals || []).find((p) => p.id === proposalId);
+  if (!prop) throw new Error("Proposal not found");
+  if (prop.status !== "open") throw new Error("Proposal already " + prop.status);
+
+  await promote({ promptId, versionId: prop.sourceVersionId, mode, rationale });
+
+  mutate((s) => {
+    const { prompt } = findPrompt(s, promptId);
+    const pp = (prompt.proposals || []).find((p) => p.id === proposalId);
+    if (!pp) return;
+    const actor = s.meta?.currentActor || null;
+    pp.status = "merged";
+    pp.closedAt = Date.now();
+    pp.closedBy = actor;
+    // For squashed promotion, the new canonical head id is the newly-created
+    // version — take it from the canonical branch head set by promote().
+    const canon = prompt.branches.find((b) => b.id === prompt.canonicalBranchId);
+    pp.createdVersionId = canon?.headVersionId || null;
+    pushActivity(prompt, "proposal_merged",
+      { proposalId, mode, createdVersionId: pp.createdVersionId, rationale }, actor);
+  });
+}
+
+export function declineProposal({ promptId, proposalId, reason }) {
+  mutate((s) => {
+    const { prompt } = findPrompt(s, promptId);
+    const prop = (prompt.proposals || []).find((p) => p.id === proposalId);
+    if (!prop) throw new Error("Proposal not found");
+    if (prop.status !== "open") throw new Error("Proposal already " + prop.status);
+    const actor = s.meta?.currentActor || null;
+    prop.status = "closed";
+    prop.closedAt = Date.now();
+    prop.closedBy = actor;
+    if (reason) {
+      prop.comments = prop.comments || [];
+      prop.comments.push({
+        id: newId("pc"), author: actor, createdAt: Date.now(),
+        body: `Declined: ${reason.trim()}`,
+      });
+    }
+    pushActivity(prompt, "proposal_declined", { proposalId, reason: reason || "" }, actor);
+  });
+}
+
+export function listProposals(prompt, { status } = {}) {
+  let list = [...(prompt.proposals || [])];
+  if (status) list = list.filter((p) => p.status === status);
+  list.sort((a, b) => b.openedAt - a.openedAt);
+  return list;
+}
+
+// ---------------------------------------------------------------------------
+// Releases (tagged canonical versions with release notes)
+// ---------------------------------------------------------------------------
+export function createRelease({ promptId, versionId, name, notes }) {
+  if (!name?.trim()) throw new Error("Release name required");
+  let releaseId;
+  mutate((s) => {
+    const { prompt } = findPrompt(s, promptId);
+    const v = prompt.versions.find((x) => x.id === versionId);
+    if (!v) throw new Error("Version not found");
+    const actor = s.meta?.currentActor || null;
+    releaseId = newId("rel");
+    prompt.releases = prompt.releases || [];
+    prompt.releases.push({
+      id: releaseId, versionId, name: name.trim(),
+      notes: (notes || "").trim(),
+      createdAt: Date.now(), createdBy: actor,
+    });
+    pushActivity(prompt, "release_published",
+      { releaseId, versionId, name: name.trim() }, actor);
+  });
+  return releaseId;
+}
+
+export function listReleases(prompt) {
+  return [...(prompt.releases || [])].sort((a, b) => b.createdAt - a.createdAt);
+}
+
+// Generate release notes automatically from change summaries between two
+// versions along the parent chain (or from the root if `sinceId` is null).
+export function draftReleaseNotes(prompt, versionId, sinceId = null) {
+  const byId = new Map(prompt.versions.map((v) => [v.id, v]));
+  const chain = [];
+  let cur = byId.get(versionId);
+  while (cur && cur.id !== sinceId) {
+    chain.push(cur);
+    if (!cur.parentVersionId) break;
+    cur = byId.get(cur.parentVersionId);
+  }
+  chain.reverse();
+  return chain.map((v) => `- v${v.number}: ${v.changeSummary || "(no summary)"}`).join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Prompt README
+// ---------------------------------------------------------------------------
+export function setPromptReadme({ promptId, readme }) {
+  mutate((s) => {
+    const { prompt } = findPrompt(s, promptId);
+    prompt.readme = readme;
+    prompt.updatedAt = Date.now();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Members / actor switching
+// ---------------------------------------------------------------------------
+export function listProjectMembers(project) { return project.members || []; }
+
+export function setCurrentActor(memberId) {
+  mutate((s) => { s.meta = s.meta || {}; s.meta.currentActor = memberId; });
+}
+
+export function getCurrentActor() {
+  const s = getState();
+  return s?.meta?.currentActor || null;
 }

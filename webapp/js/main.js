@@ -10,6 +10,7 @@ import { renderProjectView,   bindProjectView }   from "./views/project.js";
 import { renderPromptView,    bindPromptView, promptShortcuts } from "./views/prompt.js";
 import { renderCompareView,   bindCompareView }   from "./views/compare.js";
 import { renderRefineView,    bindRefineView }    from "./views/refine.js";
+import { renderProposalView,  bindProposalView }  from "./views/proposal.js";
 import { renderSearchView,    bindSearchView }    from "./views/search.js";
 import {
   renderDatasetsView, bindDatasetsView,
@@ -89,6 +90,7 @@ function pickView(route) {
     case "prompt":    return { markup: renderPromptView(route),       bind: bindPromptView };
     case "compare":   return { markup: renderCompareView(route),      bind: bindCompareView };
     case "refine":    return { markup: renderRefineView(route),       bind: bindRefineView };
+    case "proposal":  return { markup: renderProposalView(route),     bind: bindProposalView };
     case "search":    return { markup: renderSearchView(route),       bind: bindSearchView };
     case "datasets":  return { markup: renderDatasetsView(route),     bind: bindDatasetsView };
     case "models":    return { markup: renderModelsView(route),       bind: bindModelsView };
