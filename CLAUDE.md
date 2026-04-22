@@ -95,7 +95,7 @@ sub-bullets in place. Done items move to §2.
 | # | Item | Status |
 |---|---|---|
 | C1 | Blame view: each body line shows the version that introduced it | **done** | pure `blame(versions, targetId)` in `domain.js` walks the parent chain root→target, propagates per-line attribution through line-diffs; toggle in Content tab via `?blame=1`; renders gutter table with avatar + version + change summary, consecutive same-source lines collapse via rowspan; click gutter → jump to source version |
-| C2 | Eval-score trend chart per prompt (uses Chart.js or μPlot) | pending |
+| C2 | Eval-score trend chart per prompt | **done** | hand-rolled SVG line chart in `webapp/js/ui/chart.js` (no Chart.js — single use, < 200 lines); `services.scoreTrend(prompt, project)` aggregates per (version, testCase); new "Trend" tab shows mean line + per-test-case lines, hover tooltips, click-to-jump-to-version, sidebar with latest score + delta-vs-previous |
 | C3 | A/B testing with statistical significance markers (Wilson score) | pending |
 | C4 | Multi-model batch evaluation: run one version across N model profiles in one click | pending |
 | C5 | Markdown via marked for README + proposals | **done** | swapped `renderMarkdown` → `vendor.md` (marked) on the README tab, proposal description, all proposal discussion comments and inline review comments. `.comment-text` CSS tightened so paragraphs sit naturally inside the comment chrome. |

@@ -813,3 +813,71 @@ export function getCurrentActor() {
   const s = getState();
   return s?.meta?.currentActor || null;
 }
+
+// ---------------------------------------------------------------------------
+// Score trend over versions.
+//
+// Returns one record per version that has at least one scored run, in
+// chronological order (by version number). Each record carries:
+//   { versionId, number, title, status, branch, runCount,
+//     mean: 0..1 | null,
+//     byTestCase: { [testCaseId-or-"ad-hoc"]: { score, runCount, name } }
+//   }
+//
+// `mean` is the arithmetic mean of all scored evaluations attached to
+// runs on this version. Per-test-case score is the mean across runs of
+// that test case (latest run wins per (testCase, modelProfile)).
+//
+// The chart picks: mean line + per-test-case lines.
+// ---------------------------------------------------------------------------
+export function scoreTrend(prompt, project) {
+  const versions = (prompt.versions || []).slice().sort((a, b) => a.number - b.number);
+  const runs = prompt.runs || [];
+  const evals = prompt.evaluations || [];
+  const byRun = new Map();
+  for (const e of evals) {
+    if (e.score == null) continue;
+    if (!byRun.has(e.runId)) byRun.set(e.runId, []);
+    byRun.get(e.runId).push(e.score);
+  }
+  const tcName = (id) => {
+    if (!id) return "ad-hoc";
+    for (const ds of (project?.datasets || []))
+      for (const tc of ds.testCases || []) if (tc.id === id) return tc.name;
+    return id;
+  };
+
+  const out = [];
+  for (const v of versions) {
+    const versionRuns = runs.filter((r) => r.versionId === v.id);
+    if (!versionRuns.length) continue;
+    let totalScores = [], byTC = new Map();
+    for (const r of versionRuns) {
+      const scores = byRun.get(r.id);
+      if (!scores || !scores.length) continue;
+      const m = scores.reduce((a, b) => a + b, 0) / scores.length;
+      totalScores.push(m);
+      const key = r.testCaseId || "ad-hoc";
+      if (!byTC.has(key)) byTC.set(key, { name: tcName(key), runs: [] });
+      byTC.get(key).runs.push(m);
+    }
+    if (!totalScores.length) continue;
+    const byTestCase = {};
+    for (const [k, v] of byTC) {
+      const s = v.runs.reduce((a, b) => a + b, 0) / v.runs.length;
+      byTestCase[k] = { score: s, runCount: v.runs.length, name: v.name };
+    }
+    const branch = (prompt.branches || []).find((b) => b.id === v.createdOnBranchId);
+    out.push({
+      versionId: v.id,
+      number: v.number,
+      title: v.title,
+      status: v.status,
+      branch: branch?.name ?? null,
+      runCount: versionRuns.length,
+      mean: totalScores.reduce((a, b) => a + b, 0) / totalScores.length,
+      byTestCase,
+    });
+  }
+  return out;
+}

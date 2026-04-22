@@ -10,6 +10,7 @@ import * as services from "../services.js";
 import { buildTree, canTransition, STATUSES, analyze, blame } from "../domain.js";
 import { navigate } from "../router.js";
 import { timeline } from "../ui/timeline.js";
+import { lineChart, bindChartTooltips } from "../ui/chart.js";
 import { md as renderMarkdown } from "../vendor.js";
 import {
   serializeRun, serializeRunsForVersion,
@@ -302,6 +303,7 @@ function renderTabs({ prompt, version, tab }) {
       ${mk("content", "Content")}
       ${hasReadme ? mk("readme", "README") : ""}
       ${mk("runs", "Runs &amp; Evidence", runs)}
+      ${mk("trend", "Trend")}
       ${mk("proposals", "Proposals", openProposals, "open")}
       ${mk("releases", "Releases", releases)}
       ${mk("activity", "Activity", activities)}
@@ -318,6 +320,7 @@ function renderTabContent(ctx) {
   switch (ctx.tab) {
     case "readme":    return renderReadmeTab(ctx);
     case "runs":      return renderRunsTab(ctx);
+    case "trend":     return renderTrendTab(ctx);
     case "proposals": return renderProposalsTab(ctx);
     case "releases":  return renderReleasesTab(ctx);
     case "activity":  return renderActivityTab(ctx);
@@ -675,6 +678,118 @@ function renderRunsTab({ project, prompt, version }) {
       </tbody>
     </table>`;
 }
+
+// --- Tab: Trend ---
+//
+// X-axis = version number (only versions with at least one run, in
+// chronological order). Y-axis = mean evaluation score, 0..100%.
+//
+// Series:
+//   - one bold "Mean" line across all evaluations of each version
+//   - one finer line per (test case) — surfaces regressions that
+//     average-out at the aggregate level.
+function renderTrendTab({ project, prompt }) {
+  const trend = services.scoreTrend(prompt, project);
+  if (!trend.length) {
+    return `
+      <div class="section-head">
+        <div class="eyebrow">Score trend</div>
+      </div>
+      <div class="empty">
+        <div class="ttl">No scored runs yet</div>
+        <div class="sub">Run a few versions against your test cases — the trend chart appears as soon as evaluator scores accumulate.</div>
+      </div>`;
+  }
+
+  // Per-test-case series (always include "ad-hoc" if present).
+  const tcKeys = new Set();
+  for (const t of trend) for (const k of Object.keys(t.byTestCase)) tcKeys.add(k);
+  const tcList = [...tcKeys];
+
+  // Distinct, friendly colours per series (consistent across renders).
+  const palette = ["#6366f1", "#10b981", "#f59e0b", "#ec4899", "#0ea5e9", "#a855f7", "#22c55e", "#f43f5e"];
+  const colorOf = (i) => palette[i % palette.length];
+
+  const baseHref = `#/p/${project.slug}/p/${prompt.slug}/v/`;
+
+  const meanSeries = {
+    name: "Mean (all evals)",
+    color: "var(--ink-950)",
+    points: trend.map((t) => ({
+      x: t.number,
+      y: t.mean,
+      label: `v${t.number} · ${(t.mean * 100).toFixed(0)}% (${t.runCount} run${t.runCount === 1 ? "" : "s"})`,
+      href: baseHref + t.versionId,
+    })),
+  };
+
+  const tcSeries = tcList.map((key, i) => {
+    const points = trend
+      .filter((t) => t.byTestCase[key] != null)
+      .map((t) => {
+        const cell = t.byTestCase[key];
+        return {
+          x: t.number,
+          y: cell.score,
+          label: `v${t.number} · ${cell.name} · ${(cell.score * 100).toFixed(0)}%`,
+          href: baseHref + t.versionId,
+        };
+      });
+    return {
+      name: trend.find((t) => t.byTestCase[key])?.byTestCase[key]?.name || key,
+      color: colorOf(i),
+      points,
+    };
+  });
+
+  const xTicks = trend.map((t) => ({ x: t.number, label: `v${t.number}` }));
+
+  // Compose chart. Mean series rendered last so it sits on top.
+  const chart = lineChart({
+    width: 720, height: 240,
+    xAxis: { label: "Version", ticks: xTicks },
+    yAxis: { label: "Score", min: 0, max: 1, format: (v) => Math.round(v * 100) + "%" },
+    series: [...tcSeries, meanSeries],
+  });
+
+  // Sidebar: latest mean + delta vs previous.
+  const last = trend[trend.length - 1];
+  const prev = trend.length >= 2 ? trend[trend.length - 2] : null;
+  const delta = prev ? (last.mean - prev.mean) : null;
+  const deltaCls = delta == null ? "" : delta > 0 ? "good" : delta < 0 ? "bad" : "";
+  const deltaLabel = delta == null
+    ? "first scored version"
+    : `${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(0)}% vs v${prev.number}`;
+
+  return `
+    <div class="section-head">
+      <div class="eyebrow">Score trend across versions</div>
+      <div class="meta">${trend.length} version${trend.length === 1 ? "" : "s"} with runs</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 200px;gap:18px;align-items:flex-start">
+      <div data-trend-chart>${chart}</div>
+      <div class="form-card">
+        <div class="eyebrow" style="margin-bottom:6px">Latest</div>
+        <div style="font-size:22px;font-weight:600;letter-spacing:-0.01em">${(last.mean * 100).toFixed(0)}%</div>
+        <div style="font-size:12px;color:var(--fg-muted)">v${last.number} · ${last.runCount} run${last.runCount === 1 ? "" : "s"}</div>
+        <div class="score ${deltaCls}" style="margin-top:8px;font-family:var(--font-mono);font-size:12.5px">${escapeHtml(deltaLabel)}</div>
+        ${tcList.length > 1 ? `
+          <div class="eyebrow" style="margin-top:14px;margin-bottom:6px">Per test case</div>
+          <ul style="list-style:none;padding:0;margin:0;font-size:12.5px;color:var(--fg-muted);display:flex;flex-direction:column;gap:4px">
+            ${tcList.map((k, i) => {
+              const cell = last.byTestCase[k];
+              if (!cell) return "";
+              return `<li style="display:flex;align-items:center;gap:6px">
+                <span style="width:10px;height:10px;border-radius:50%;background:${colorOf(i)};display:inline-block"></span>
+                <span style="flex:1;color:var(--fg)">${escapeHtml(cell.name)}</span>
+                <span class="score ${cell.score >= 0.8 ? "good" : cell.score >= 0.5 ? "mid" : "bad"}" style="font-family:var(--font-mono)">${(cell.score * 100).toFixed(0)}%</span>
+              </li>`;
+            }).join("")}
+          </ul>` : ""}
+      </div>
+    </div>`;
+}
+
 function findTestCase(project, id) {
   if (!id) return null;
   for (const d of project.datasets || [])
@@ -840,6 +955,10 @@ export function bindPromptView(root, route) {
 
   // --- runs tab: fill in the async cost cells ---
   fillRunCostCells(ctx, root).catch((err) => console.warn("cost fill failed:", err));
+
+  // --- trend chart tooltips ---
+  const chartHost = root.querySelector("[data-trend-chart]");
+  if (chartHost) bindChartTooltips(chartHost);
 }
 
 // Walks the visible runs table and writes a real-or-estimated cost into
