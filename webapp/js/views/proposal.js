@@ -9,7 +9,7 @@ import {
 } from "../ui/components.js";
 import { getState, commit } from "../store.js";
 import * as services from "../services.js";
-import { diffText } from "../domain.js";
+import { diffText, approvalStatus } from "../domain.js";
 import { navigate } from "../router.js";
 import { md } from "../vendor.js";
 
@@ -33,6 +33,7 @@ export function renderProposalView(route) {
     ${renderTopbar(project, prompt, proposal)}
     <div class="main">
       ${renderHead(project, prompt, proposal, source, target, opener)}
+      ${renderApprovalBar(project, prompt, proposal)}
       ${renderDescription(project, proposal, opener)}
       ${source && target ? renderDiff(proposal, source, target) : ""}
       ${renderEvidence(project, prompt, proposal, source, target)}
@@ -81,13 +82,81 @@ function renderHead(project, prompt, proposal, source, target, opener) {
         </div>
       </div>
       <div class="actions">
-        ${proposal.status === "open" ? `
-          <button class="btn" data-act="decline-proposal">Decline</button>
-          <button class="btn accent" data-act="merge-proposal">${icon("check", { size: 13 })} Merge proposal</button>
-        ` : `<a class="btn" href="#/p/${escapeHtml(project.slug)}/p/${escapeHtml(prompt.slug)}">${icon("back", { size: 13 })} Back to prompt</a>`}
+        ${proposal.status === "open" ? (() => {
+          const gs = approvalStatus(proposal, project, project.members?.length
+            ? (getState().meta?.currentActor || null) : null);
+          const mergeDisabled = !gs.canMerge ? "disabled" : "";
+          const mergeTitle = gs.canMerge
+            ? "Merge this proposal to the canonical branch"
+            : `Needs ${gs.remaining} more approval${gs.remaining === 1 ? "" : "s"} (${gs.have}/${gs.required})`;
+          return `
+            <button class="btn" data-act="decline-proposal">Decline</button>
+            <button class="btn accent" data-act="merge-proposal" ${mergeDisabled}
+                    title="${escapeHtml(mergeTitle)}">
+              ${icon("check", { size: 13 })} Merge proposal
+            </button>`;
+        })() : `<a class="btn" href="#/p/${escapeHtml(project.slug)}/p/${escapeHtml(prompt.slug)}">${icon("back", { size: 13 })} Back to prompt</a>`}
       </div>
     </div>
   `;
+}
+
+// Approval status bar — the visible contract for the merge gate.
+// Shows: progress (N of M), who has approved, and an Approve / Revoke
+// button for the current actor. Threshold is editable inline.
+function renderApprovalBar(project, prompt, proposal) {
+  if (proposal.status !== "open") return "";
+  const currentActor = getState().meta?.currentActor || null;
+  const gs = approvalStatus(proposal, project, currentActor);
+  const approvers = (proposal.approvals || []).map((a) => resolveMember(project, a.author));
+
+  const progressPct = gs.required === 0 ? 100
+    : Math.min(100, Math.round((gs.have / gs.required) * 100));
+  const barClass = gs.canMerge ? "gate-open" : "gate-closed";
+  const statusLine = gs.required === 0
+    ? "Merge gate disabled (0 approvals required). Anyone can merge."
+    : gs.canMerge
+      ? `Ready to merge — ${gs.have} of ${gs.required} approvals collected.`
+      : `${gs.have} of ${gs.required} approvals · ${gs.remaining} more needed`;
+
+  const approversBlock = approvers.length
+    ? `<div class="approval-approvers">
+         <span class="avatar-stack">${approvers.map((m) => avatar(m, 22)).join("")}</span>
+         <span class="approval-names">Approved by ${approvers.map((m) => escapeHtml(m.name)).join(", ")}</span>
+       </div>`
+    : `<div class="approval-approvers approval-empty">No approvals yet.</div>`;
+
+  const actorBlock = (() => {
+    if (!currentActor) {
+      return `<span class="approval-hint">Set a current actor to approve.</span>`;
+    }
+    if (proposal.openedBy === currentActor) {
+      return `<span class="approval-hint">You opened this — someone else has to approve.</span>`;
+    }
+    if (gs.approvedByCurrent) {
+      return `<button class="btn sm" data-act="unapprove-proposal">${icon("reset", { size: 12 })} Revoke approval</button>`;
+    }
+    return `<button class="btn sm accent" data-act="approve-proposal">${icon("check", { size: 12 })} Approve</button>`;
+  })();
+
+  return `
+    <div class="approval-bar ${barClass}">
+      <div class="approval-main">
+        <div class="approval-title">
+          ${icon(gs.canMerge ? "check" : "crown", { size: 14 })}
+          <strong>${escapeHtml(statusLine)}</strong>
+          <button class="approval-edit-threshold" data-act="edit-threshold"
+                  title="Change required approvals">
+            ${icon("cog", { size: 11 })} change
+          </button>
+        </div>
+        <div class="approval-progress" aria-label="approval progress">
+          <div class="approval-progress-fill" style="width:${progressPct}%"></div>
+        </div>
+        ${approversBlock}
+      </div>
+      <div class="approval-action">${actorBlock}</div>
+    </div>`;
 }
 
 function renderDescription(project, proposal, opener) {
@@ -287,6 +356,23 @@ export function bindProposalView(root, route) {
   root.querySelector('[data-act="merge-proposal"]')?.addEventListener("click", () => openMergeModal(project, prompt, proposal));
   root.querySelector('[data-act="decline-proposal"]')?.addEventListener("click", () => openDeclineModal(project, prompt, proposal));
 
+  // Approval gate
+  root.querySelector('[data-act="approve-proposal"]')?.addEventListener("click", async () => {
+    try {
+      services.approveProposal({ promptId: prompt.id, proposalId: proposal.id });
+      await commit();
+      toast("Approved");
+    } catch (err) { toast(err.message); }
+  });
+  root.querySelector('[data-act="unapprove-proposal"]')?.addEventListener("click", async () => {
+    services.unapproveProposal({ promptId: prompt.id, proposalId: proposal.id });
+    await commit();
+    toast("Approval revoked");
+  });
+  root.querySelector('[data-act="edit-threshold"]')?.addEventListener("click", () => {
+    openThresholdModal(project);
+  });
+
   // Post comment
   root.querySelector("#comment-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -344,6 +430,25 @@ function openDeclineModal(project, prompt, proposal) {
       services.declineProposal({ promptId: prompt.id, proposalId: proposal.id, reason: data.reason });
       await commit();
       toast("Proposal declined");
+    },
+  });
+}
+
+function openThresholdModal(project) {
+  const current = typeof project.approvalsRequired === "number" ? project.approvalsRequired : 1;
+  modal({
+    title: "Required approvals",
+    sub: "Minimum approvals a proposal must collect before it can be merged. Applies to every proposal in this project. Set to 0 to disable the gate.",
+    body: `
+      <div class="row"><label>Approvals required <span class="req">*</span></label>
+        <input name="n" type="number" min="0" max="20" required value="${current}" /></div>`,
+    primary: "Save", secondary: "Cancel",
+    onSubmit: async (data) => {
+      const n = Number(data.n);
+      if (!Number.isFinite(n) || n < 0) throw new Error("Enter a non-negative integer.");
+      services.setApprovalsRequired({ projectId: project.id, n });
+      await commit();
+      toast(n === 0 ? "Gate disabled — anyone can merge" : `Threshold set to ${n}`);
     },
   });
 }

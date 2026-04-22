@@ -573,3 +573,36 @@ export function abFromScores(pairs, threshold = 0.5, z = 1.96) {
   }
   return wilsonDiff(aK, aN, bK, bN, z);
 }
+
+// ---------------------------------------------------------------------------
+// Approval gate on proposals.
+// Pure read-side — mirror of src/domain/approval.ts. Writes live in services.
+// ---------------------------------------------------------------------------
+
+// Normalise a possibly-missing threshold. Default 1 — reviewers must still
+// act, but a single +1 suffices.
+export function approvalsRequired(project) {
+  const n = project?.approvalsRequired;
+  if (typeof n !== "number" || !Number.isFinite(n) || n < 0) return 1;
+  return Math.floor(n);
+}
+
+export function hasApproved(proposal, actorId) {
+  if (!actorId) return false;
+  return (proposal.approvals || []).some((a) => a.author === actorId);
+}
+
+export function approvalStatus(proposal, project, currentActor) {
+  const have = (proposal.approvals || []).length;
+  const required = approvalsRequired(project);
+  const remaining = Math.max(0, required - have);
+  const canMerge = have >= required && proposal.status === "open";
+  const approvedByCurrent = hasApproved(proposal, currentActor);
+  const canApprove = Boolean(
+    currentActor &&
+    !approvedByCurrent &&
+    proposal.status === "open" &&
+    proposal.openedBy !== currentActor, // no self-approval
+  );
+  return { have, required, remaining, canMerge, approvedByCurrent, canApprove };
+}

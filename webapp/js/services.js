@@ -5,7 +5,7 @@ import { mutate, getState } from "./store.js";
 import {
   newId, slugify, contentHash, validateBranchName, suggestRefineBranchName,
   canTransition, analyze, propose, render, mockModelCall, evaluate,
-  checkPointerPromotion, isDescendant,
+  checkPointerPromotion, isDescendant, approvalsRequired as approvalGateThreshold,
 } from "./domain.js";
 
 // ---------------------------------------------------------------------------
@@ -741,14 +741,68 @@ export function resolveReviewComment({ promptId, proposalId, commentId }) {
   });
 }
 
+// Add the current actor's approval on a proposal. Idempotent — approving
+// twice is a no-op. Self-approval (opener approving their own proposal) is
+// rejected so the gate can't be bypassed by the author alone.
+export function approveProposal({ promptId, proposalId }) {
+  mutate((s) => {
+    const { prompt } = findPrompt(s, promptId);
+    const prop = (prompt.proposals || []).find((p) => p.id === proposalId);
+    if (!prop) throw new Error("Proposal not found");
+    if (prop.status !== "open") throw new Error("Proposal already " + prop.status);
+    const actor = s.meta?.currentActor || null;
+    if (!actor) throw new Error("No current user — set meta.currentActor");
+    if (prop.openedBy === actor) throw new Error("You can't approve your own proposal");
+    prop.approvals = prop.approvals || [];
+    if (prop.approvals.some((a) => a.author === actor)) return; // idempotent
+    prop.approvals.push({ id: newId("apr"), author: actor, createdAt: Date.now() });
+    pushActivity(prompt, "proposal_approved", { proposalId }, actor);
+  });
+}
+
+// Revoke the current actor's approval — a reviewer changed their mind.
+// No-op if no approval existed.
+export function unapproveProposal({ promptId, proposalId }) {
+  mutate((s) => {
+    const { prompt } = findPrompt(s, promptId);
+    const prop = (prompt.proposals || []).find((p) => p.id === proposalId);
+    if (!prop) throw new Error("Proposal not found");
+    if (prop.status !== "open") throw new Error("Proposal already " + prop.status);
+    const actor = s.meta?.currentActor || null;
+    if (!actor) return;
+    const before = (prop.approvals || []).length;
+    prop.approvals = (prop.approvals || []).filter((a) => a.author !== actor);
+    if (prop.approvals.length !== before) {
+      pushActivity(prompt, "proposal_unapproved", { proposalId }, actor);
+    }
+  });
+}
+
+// Per-project merge-gate threshold. n=0 ⇒ gate is always open.
+export function setApprovalsRequired({ projectId, n }) {
+  const v = Math.max(0, Math.floor(Number(n) || 0));
+  mutate((s) => {
+    const project = s.projects.find((p) => p.id === projectId);
+    if (!project) throw new Error("Project not found");
+    project.approvalsRequired = v;
+  });
+}
+
 // Merge a proposal: calls promote, then marks the proposal merged.
+// Enforces the per-project approval threshold. A threshold of 0 means
+// anyone can merge immediately.
 export async function mergeProposal({ promptId, proposalId, mode = "squashed", rationale }) {
   if (!rationale?.trim()) throw new Error("Merge rationale required");
   const s0 = getState();
-  const { prompt: p0 } = findPrompt(s0, promptId);
+  const { project: prj0, prompt: p0 } = findPrompt(s0, promptId);
   const prop = (p0.proposals || []).find((p) => p.id === proposalId);
   if (!prop) throw new Error("Proposal not found");
   if (prop.status !== "open") throw new Error("Proposal already " + prop.status);
+  const required = approvalGateThreshold(prj0);
+  const have = (prop.approvals || []).length;
+  if (have < required) {
+    throw new Error(`Needs ${required - have} more approval${required - have === 1 ? "" : "s"} to merge (${have}/${required})`);
+  }
 
   await promote({ promptId, versionId: prop.sourceVersionId, mode, rationale });
 

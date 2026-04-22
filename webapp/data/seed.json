@@ -13,6 +13,7 @@
       "description": "A seeded project showing a classifier prompt with four branches and six versions.",
       "createdAt": 1713792000000,
       "updatedAt": 1713878400000,
+      "approvalsRequired": 2,
       "members": [
         { "id": "mem_belkis", "name": "Belkis",  "initials": "BK", "color": "#6d28d9" },
         { "id": "mem_ada",    "name": "Ada",     "initials": "AD", "color": "#0ea5e9" },
@@ -203,6 +204,9 @@
               "reviewComments": [
                 { "id": "rc_1", "side": "b", "lineIndex": 3,  "author": "mem_marco",  "createdAt": 1713870500000, "body": "Nice tightening. Consider dropping the comma before 'pick' to match the rest of the prompt's voice.", "resolvedAt": null },
                 { "id": "rc_2", "side": "b", "lineIndex": 10, "author": "mem_belkis", "createdAt": 1713871000000, "body": "Could we also add an 'I want to cancel my plan' example? Currently misrouted as product.", "resolvedAt": null }
+              ],
+              "approvals": [
+                { "id": "apr_1", "author": "mem_marco", "createdAt": 1713870600000 }
               ]
             }
           ],
