@@ -1,6 +1,6 @@
 // Project dashboard — prompts grid for a given project.
 
-import { html, escapeHtml, icon, modal, toast } from "../ui/components.js";
+import { html, escapeHtml, icon, brandMark, modal, toast } from "../ui/components.js";
 import { getState, commit } from "../store.js";
 import * as services from "../services.js";
 import { navigate } from "../router.js";
@@ -46,7 +46,7 @@ function renderProjectTopbar(project) {
   return `
     <div class="topbar">
       <a class="topbar-logo" href="#/">
-        <span class="mark">${icon("prompt", { size: 13, stroke: 1.6 })}</span>
+        <span class="mark">${brandMark(22)}</span>
         Prompt Tree
       </a>
       <span class="topbar-crumb">

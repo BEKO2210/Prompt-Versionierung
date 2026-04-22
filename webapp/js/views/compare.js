@@ -1,6 +1,6 @@
 // Compare view — side-by-side diff + paired run evidence.
 
-import { html, escapeHtml, icon, statusPill, scoreCell } from "../ui/components.js";
+import { html, escapeHtml, icon, brandMark, statusPill, scoreCell } from "../ui/components.js";
 import { getState } from "../store.js";
 import { diffText } from "../domain.js";
 import * as services from "../services.js";
@@ -48,7 +48,7 @@ export function renderCompareView(route) {
 function renderTopbar(project, prompt) {
   return `
     <div class="topbar">
-      <a class="topbar-logo" href="#/"><span class="mark">${icon("prompt", { size: 13, stroke: 1.6 })}</span>Prompt Tree</a>
+      <a class="topbar-logo" href="#/"><span class="mark">${brandMark(22)}</span>Prompt Tree</a>
       <span class="topbar-crumb">
         <span class="sep">/</span>
         <a href="#/p/${escapeHtml(project.slug)}">${escapeHtml(project.name)}</a>

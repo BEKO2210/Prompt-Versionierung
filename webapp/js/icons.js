@@ -36,3 +36,22 @@ export function icon(name, { size = 14, stroke = 1.7 } = {}) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }
+
+// Brand mark — monochrome, inherits currentColor. Use in topbar + any
+// context that should pick up the surrounding theme. For the full
+// gradient version reference ./assets/mark.svg via <img>.
+export function brandMark(size = 22) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">
+    <g transform="rotate(-8 12 12)" fill="none" stroke="currentColor" stroke-width="2"
+       stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 6 20 C 6 16, 12 15.2, 12 11.2 C 12 8.0, 15.8 6.8, 17 5.2"/>
+      <path d="M 12 11.2 C 15.4 12.4, 18.2 13.6, 19.6 15.2"
+            stroke-width="1.5" stroke-dasharray="2 2.2" opacity="0.7"/>
+      <circle cx="6" cy="20" r="1.7"/>
+      <circle cx="12" cy="11.2" r="1.35" fill="currentColor"/>
+      <circle cx="17" cy="5.2" r="2.1" fill="currentColor"/>
+      <circle cx="17" cy="5.2" r="3.2" stroke-width="1.1" opacity="0.3"/>
+      <circle cx="19.6" cy="15.2" r="1.3" stroke-width="1.3" opacity="0.75"/>
+    </g>
+  </svg>`;
+}

@@ -1,6 +1,6 @@
 // Reusable rendering helpers and modal/palette/toast utilities.
 
-import { icon } from "../icons.js";
+import { icon, brandMark } from "../icons.js";
 
 // ---------------------------------------------------------------------------
 // Templating helpers
@@ -119,5 +119,5 @@ export function relTime(t) {
   return new Date(t).toISOString().slice(0, 10);
 }
 
-// Re-export icon for convenience.
-export { icon };
+// Re-export icon + brandMark for convenience.
+export { icon, brandMark };

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Prompt Tree mark — monochrome. Uses currentColor so it inherits the
+  surrounding text color (works in light/dark themes and on colored
+  backgrounds). Same proportions as the colored mark.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="Prompt Tree">
+  <title>Prompt Tree</title>
+  <g transform="rotate(-8 12 12)" fill="none" stroke="currentColor"
+     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 6 20
+             C 6 16, 12 15.2, 12 11.2
+             C 12 8.0, 15.8 6.8, 17 5.2"/>
+    <path d="M 12 11.2 C 15.4 12.4, 18.2 13.6, 19.6 15.2"
+          stroke-width="1.5" stroke-dasharray="2 2.2" opacity="0.7"/>
+    <circle cx="6"  cy="20"    r="1.7"/>
+    <circle cx="12" cy="11.2"  r="1.35" fill="currentColor"/>
+    <circle cx="17" cy="5.2"   r="2.1"  fill="currentColor"/>
+    <circle cx="17" cy="5.2"   r="3.2"  stroke-width="1.1" opacity="0.3"/>
+    <circle cx="19.6" cy="15.2" r="1.3" stroke-width="1.3" opacity="0.75"/>
+  </g>
+</svg>

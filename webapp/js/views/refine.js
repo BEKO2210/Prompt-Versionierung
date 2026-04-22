@@ -1,7 +1,7 @@
 // Refinement workspace — runs analyzers, produces a suggestion,
 // accept creates a new version on a new branch.
 
-import { html, escapeHtml, icon, modal, toast } from "../ui/components.js";
+import { html, escapeHtml, icon, brandMark, modal, toast } from "../ui/components.js";
 import { getState, commit } from "../store.js";
 import * as services from "../services.js";
 import { navigate } from "../router.js";
@@ -42,7 +42,7 @@ export function renderRefineView(route) {
 function renderTopbar(project, prompt, version) {
   return `
     <div class="topbar">
-      <a class="topbar-logo" href="#/"><span class="mark">${icon("prompt", { size: 13, stroke: 1.6 })}</span>Prompt Tree</a>
+      <a class="topbar-logo" href="#/"><span class="mark">${brandMark(22)}</span>Prompt Tree</a>
       <span class="topbar-crumb">
         <span class="sep">/</span>
         <a href="#/p/${escapeHtml(project.slug)}">${escapeHtml(project.name)}</a>

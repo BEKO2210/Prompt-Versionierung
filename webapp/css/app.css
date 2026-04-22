@@ -127,17 +127,20 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
    --------------------------------------------------------------------------- */
 #splash {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-  flex-direction: column; gap: 12px; background: var(--bg); z-index: 9999;
+  flex-direction: column; gap: 14px; background: var(--bg); z-index: 9999;
   transition: opacity .3s ease;
 }
 #splash.hidden { opacity: 0; pointer-events: none; }
-.splash-logo {
-  display: flex; align-items: center; justify-content: center;
-  color: var(--accent);
+.splash-mark {
+  animation: splash-breathe 1.6s ease-in-out infinite;
+}
+@keyframes splash-breathe {
+  0%, 100% { opacity: .7;  transform: scale(0.98); }
+  50%      { opacity: 1;   transform: scale(1);    }
 }
 .splash-text {
   font-weight: 600; letter-spacing: -0.01em; color: var(--fg-muted);
-  font-size: 14px;
+  font-size: 13.5px;
 }
 
 /* ---------------------------------------------------------------------------
@@ -154,17 +157,18 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
   position: sticky; top: 0; z-index: 50;
 }
 .topbar-logo {
-  display: inline-flex; align-items: center; gap: 8px;
+  display: inline-flex; align-items: center; gap: 9px;
   font-weight: 600; letter-spacing: -0.01em; font-size: 13.5px;
   padding: 4px 6px; border-radius: var(--radius);
   color: var(--fg);
 }
 .topbar-logo:hover { background: var(--bg-sunk); }
 .topbar-logo .mark {
-  width: 22px; height: 22px; border-radius: 6px;
-  background: var(--ink-950); color: white;
+  width: 24px; height: 24px;
   display: inline-flex; align-items: center; justify-content: center;
+  color: var(--accent);  /* currentColor driver for the monochrome mark */
 }
+.topbar-logo .mark svg { width: 100%; height: 100%; display: block; }
 .topbar-crumb {
   display: inline-flex; align-items: center; gap: 6px; color: var(--fg-muted);
   font-size: 13px;

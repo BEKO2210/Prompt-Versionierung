@@ -1,6 +1,6 @@
 // Search view — full-text within a project.
 
-import { html, escapeHtml, icon } from "../ui/components.js";
+import { html, escapeHtml, icon, brandMark } from "../ui/components.js";
 import { getState } from "../store.js";
 import * as services from "../services.js";
 
@@ -13,7 +13,7 @@ export function renderSearchView(route) {
 
   return html`
     <div class="topbar">
-      <a class="topbar-logo" href="#/"><span class="mark">${icon("prompt", { size: 13, stroke: 1.6 })}</span>Prompt Tree</a>
+      <a class="topbar-logo" href="#/"><span class="mark">${brandMark(22)}</span>Prompt Tree</a>
       <span class="topbar-crumb">
         <span class="sep">/</span><a href="#/p/${escapeHtml(project.slug)}">${escapeHtml(project.name)}</a>
         <span class="sep">/</span><span class="current">search</span>
