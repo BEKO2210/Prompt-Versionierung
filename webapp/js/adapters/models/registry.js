@@ -11,12 +11,13 @@
 
 import { mockAdapter } from "./mock.js";
 import { anthropicAdapter } from "./anthropic.js";
+import { openaiAdapter } from "./openai.js";
 import { hasApiKey } from "../../secrets.js";
 
 const ADAPTERS = {
   mock: mockAdapter,
   anthropic: anthropicAdapter,
-  // openai:  → B1.3
+  openai: openaiAdapter,
   // google:  → B1.4
   // custom:  → user-defined endpoint, future
 };
