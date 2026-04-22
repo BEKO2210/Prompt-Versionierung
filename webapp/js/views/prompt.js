@@ -463,7 +463,7 @@ function renderContentTab(ctx) {
         <div class="eyebrow">Metadata</div>
         <div class="kv">
           <div class="row"><div class="k">Content hash</div><div class="v mono">${escapeHtml((version.contentHash || "").slice(0, 7))}</div></div>
-          <div class="row"><div class="k">Created</div><div class="v">${escapeHtml(relTime(version.createdAt))} ${version.createdBy ? "· " + escapeHtml(version.createdBy) : ""}</div></div>
+          <div class="row"><div class="k">Created</div><div class="v">${escapeHtml(relTime(version.createdAt))} ${version.createdBy ? "· " + authorInline(resolveMember(ctx.project, version.createdBy), 16) : ""}</div></div>
           <div class="row"><div class="k">Parent</div><div class="v">${parent ? `v${parent.number} · ${escapeHtml(parent.title)}` : "<span style=\"color:var(--fg-faint)\">root</span>"}</div></div>
           ${version.rationale ? `<div class="row"><div class="k">Rationale</div><div class="v">${escapeHtml(version.rationale)}</div></div>` : ""}
           ${version.expectedImprovement ? `<div class="row"><div class="k">Expected</div><div class="v">${escapeHtml(version.expectedImprovement)}</div></div>` : ""}
@@ -546,16 +546,22 @@ function renderRunsTab({ project, prompt, version }) {
           const tc = findTestCase(project, r.testCaseId);
           const mp = project.modelProfiles.find((m) => m.id === r.modelProfileId);
           const score = services.aggregateRunScore(prompt, r.id);
+          const mockBadge = r.mocked
+            ? `<span title="${escapeAttr(r.mockedReason || 'Mock fallback used')}" style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;background:var(--amber-50);color:var(--amber-700);border:1px solid var(--amber-200);font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase">mock</span>`
+            : "";
+          const errorRow = r.status === "failed" && r.error
+            ? `<tr><td></td><td colspan="6" style="color:var(--rose-700);font-size:12px;padding-top:0">${escapeHtml(r.error)}</td></tr>`
+            : "";
           return `
             <tr>
               <td class="mono">${escapeHtml(relTime(r.createdAt))}</td>
               <td>${tc ? escapeHtml(tc.name) : '<span style="color:var(--fg-faint)">ad-hoc</span>'}</td>
-              <td>${mp ? escapeHtml(mp.name) : "—"}</td>
+              <td>${mp ? escapeHtml(mp.name) : "—"}${mockBadge}</td>
               <td>${runStatusPill(r.status)}</td>
               <td class="right">${r.latencyMs ?? "—"} ms</td>
               <td class="right">${(r.inputTokens ?? "?")}/${(r.outputTokens ?? "?")}</td>
               <td class="right">${scoreCell(score)}</td>
-            </tr>`;
+            </tr>${errorRow}`;
         }).join("")}
       </tbody>
     </table>`;
@@ -800,14 +806,35 @@ function openRunModal({ project, prompt, version }) {
     return;
   }
 
+  // Bind a live "this profile will use the real API / will fall back to mock"
+  // hint inside the modal. Reads the secrets store on every change.
+  setTimeout(async () => {
+    const sel = document.getElementById("run-profile");
+    const status = document.getElementById("provider-status");
+    if (!sel || !status) return;
+    const { describeProvider } = await import("../adapters/models/registry.js");
+    const update = async () => {
+      const opt = sel.selectedOptions[0];
+      const provider = opt?.dataset.provider || "mock";
+      const desc = await describeProvider(provider);
+      status.innerHTML = desc.real
+        ? `<span style="color:var(--green-700)">●</span> ${escapeHtml(desc.label)}`
+        : `<span style="color:var(--amber-700)">●</span> ${escapeHtml(desc.label)} <a href="#/settings" style="color:var(--accent-fg);text-decoration:underline">Open Settings →</a>`;
+    };
+    sel.addEventListener("change", update);
+    update();
+  }, 0);
+
   modal({
     title: `Run v${version.number}`,
     sub: "Renders the prompt, calls the model, and attaches evaluations.",
     body: `
       <div class="row"><label>Model profile <span class="req">*</span></label>
-        <select name="modelProfileId" required>
-          ${profiles.map((m) => `<option value="${escapeAttr(m.id)}">${escapeHtml(m.name)} · ${escapeHtml(m.provider)}:${escapeHtml(m.modelId)}</option>`).join("")}
-        </select></div>
+        <select name="modelProfileId" required id="run-profile">
+          ${profiles.map((m) => `<option value="${escapeAttr(m.id)}" data-provider="${escapeAttr(m.provider)}">${escapeHtml(m.name)} · ${escapeHtml(m.provider)}:${escapeHtml(m.modelId)}</option>`).join("")}
+        </select>
+        <div id="provider-status" class="helper" style="margin-top:6px">Checking provider…</div>
+      </div>
       <div class="row"><label>Test case</label>
         <select name="testCaseId">
           <option value="">— ad-hoc (use bindings below) —</option>
@@ -830,15 +857,26 @@ function openRunModal({ project, prompt, version }) {
       if (data.ev_regex) evaluators.push("regex");
       if (data.ev_schema) evaluators.push("schema");
       if (data.ev_similarity) evaluators.push("similarity");
-      services.createRun({
+      // Navigate first so the user sees the running row appear, then await
+      // the run to resolve. If it fails, surface the provider's error.
+      navigate(`/p/${project.slug}/p/${prompt.slug}/v/${version.id}`, { tab: "runs" });
+      const runId = await services.createRun({
         promptId: prompt.id, versionId: version.id,
         modelProfileId: data.modelProfileId,
         testCaseId: data.testCaseId || null,
         variableBindings: bindings, evaluators,
       });
       await commit();
-      toast("Run completed");
-      navigate(`/p/${project.slug}/p/${prompt.slug}/v/${version.id}`, { tab: "runs" });
+      const s2 = getState();
+      const freshPrompt = s2?.projects?.flatMap((p) => p.prompts).find((p) => p.id === prompt.id);
+      const finalRun = freshPrompt?.runs?.find((r) => r.id === runId);
+      if (finalRun?.status === "failed") {
+        toast(`Run failed: ${finalRun.error || "unknown error"}`);
+      } else if (finalRun?.mocked) {
+        toast(`Run completed (mock fallback) — see Settings`);
+      } else {
+        toast("Run completed");
+      }
     },
   });
 }

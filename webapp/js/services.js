@@ -315,9 +315,15 @@ export function addNote({ promptId, versionId, kind = "observation", body, autho
 }
 
 // ---------------------------------------------------------------------------
-// Runs (synchronous mock; the model adapter is local & deterministic)
+// Runs — two-phase: insert a `running` row, call the provider adapter,
+// then update to `succeeded` or `failed` and attach evaluations.
+//
+// The function is async because real providers are network-bound. The
+// returned promise resolves after the run row reaches a terminal state.
+// Callers that want optimistic UX can `commit()` after each mutate to
+// surface the running state immediately.
 // ---------------------------------------------------------------------------
-export function createRun({ promptId, versionId, modelProfileId, testCaseId = null,
+export async function createRun({ promptId, versionId, modelProfileId, testCaseId = null,
   variableBindings = {}, evaluators = [], temperature, maxTokens }) {
   const s = getState();
   const { project, prompt } = findPrompt(s, promptId);
@@ -340,45 +346,90 @@ export function createRun({ promptId, versionId, modelProfileId, testCaseId = nu
   const T = temperature ?? profile.defaultTemperature;
   const M = maxTokens ?? profile.defaultMaxTokens;
 
-  const t0 = performance.now();
-  const result = mockModelCall({ prompt: renderedPrompt, modelId: profile.modelId, temperature: T, maxTokens: M });
-  const elapsed = Math.max(1, Math.round(performance.now() - t0));
-
-  const evals = evaluators.map((kind) => evaluate(kind, {
-    rawOutput: result.rawOutput, expectedOutput, expectedKind,
-  }));
-
+  // PHASE 1 — insert run as "running" so the UI can paint a spinner.
   const runId = newId("run");
-  mutate((s) => {
-    const { prompt: p } = findPrompt(s, promptId);
+  const startedAt = Date.now();
+  mutate((d) => {
+    const { prompt: p } = findPrompt(d, promptId);
     p.runs = p.runs || [];
     p.runs.push({
       id: runId, versionId, modelProfileId, testCaseId,
       renderedPrompt, variableBindings: bindings,
-      rawOutput: result.rawOutput, structuredOutput: tryParseJSON(result.rawOutput),
-      status: "succeeded", error: null,
+      rawOutput: null, structuredOutput: null,
+      status: "running", error: null,
       temperature: T, maxTokens: M,
-      latencyMs: elapsed,
-      inputTokens: result.inputTokens, outputTokens: result.outputTokens,
-      costEstimate: 0,
-      startedAt: Date.now() - elapsed, finishedAt: Date.now(), createdAt: Date.now(),
+      latencyMs: null, inputTokens: null, outputTokens: null, costEstimate: 0,
+      provider: profile.provider, providerResponseId: null, mocked: false, mockedReason: null,
+      startedAt, finishedAt: null, createdAt: startedAt,
     });
+  });
+
+  // PHASE 2 — pick adapter, perform the call.
+  // resolveForRun() falls back to mock if the configured provider needs a
+  // key and none is set — the run row is then annotated `mocked=true`.
+  const { adapter, willMock, reason } =
+    await (await import("./adapters/models/registry.js")).resolveForRun(profile.provider);
+
+  let result, error;
+  try {
+    result = await adapter.call({
+      prompt: renderedPrompt,
+      messages: v.messages || null,
+      modelId: profile.modelId,
+      temperature: T,
+      maxTokens: M,
+    });
+  } catch (err) {
+    error = err;
+  }
+
+  // PHASE 3 — write outcome + evaluations atomically.
+  mutate((d) => {
+    const { prompt: p } = findPrompt(d, promptId);
+    const run = (p.runs || []).find((r) => r.id === runId);
+    if (!run) return;
+    const now = Date.now();
+    if (error) {
+      run.status = "failed";
+      run.error = error.message || String(error);
+      run.finishedAt = now;
+      run.latencyMs = now - startedAt;
+      run.mocked = willMock;
+      run.mockedReason = willMock ? reason : null;
+      pushActivity(p, "run_completed",
+        { runId, versionId, score: null, testCaseId, failed: true, error: run.error },
+        d.meta?.currentActor);
+      return;
+    }
+    run.status = "succeeded";
+    run.rawOutput = result.rawOutput;
+    run.structuredOutput = tryParseJSON(result.rawOutput);
+    run.latencyMs = result.latencyMs ?? (now - startedAt);
+    run.inputTokens = result.inputTokens;
+    run.outputTokens = result.outputTokens;
+    run.providerResponseId = result.providerResponseId || null;
+    run.finishedAt = now;
+    run.mocked = willMock;
+    run.mockedReason = willMock ? reason : null;
+
+    // Run evaluators against the real raw output.
     let meanScore = null;
     const scored = [];
-    for (const e of evals) {
+    for (const kind of evaluators) {
+      const e = evaluate(kind, { rawOutput: result.rawOutput, expectedOutput, expectedKind });
       p.evaluations = p.evaluations || [];
       p.evaluations.push({
         id: newId("eval"), runId, evaluatorKind: e.kind,
         evaluatorRef: null, rubricId: null,
         score: e.score, passed: e.passed, notes: e.notes,
-        createdAt: Date.now(),
+        createdAt: now,
       });
       if (e.score != null) scored.push(e.score);
     }
     if (scored.length) meanScore = scored.reduce((a, b) => a + b, 0) / scored.length;
     pushActivity(p, "run_completed",
-      { runId, versionId, score: meanScore, testCaseId },
-      s.meta?.currentActor);
+      { runId, versionId, score: meanScore, testCaseId, mocked: willMock },
+      d.meta?.currentActor);
   });
   return runId;
 }
