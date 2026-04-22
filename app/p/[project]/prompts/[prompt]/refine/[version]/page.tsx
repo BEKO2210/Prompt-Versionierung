@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { Shell } from "../../../../../../../src/ui/common/Shell";
+import { Card } from "../../../../../../../src/ui/common/Card";
+import { Button } from "../../../../../../../src/ui/common/Button";
+import { Field, Input } from "../../../../../../../src/ui/common/Input";
+import { Eyebrow } from "../../../../../../../src/ui/common/Eyebrow";
+import { IconArrow, IconSpark } from "../../../../../../../src/ui/common/Icon";
 import { defaultContext } from "../../../../../../../src/services/context";
 import { getProjectBySlug } from "../../../../../../../src/services/projectService";
 import { getPromptBySlug } from "../../../../../../../src/services/promptService";
@@ -27,85 +32,120 @@ export default async function RefinePage({
   return (
     <Shell
       projectSlug={projectSlug}
-      title={`Refine · ${prompt.name} · v${version.number}`}
+      currentPath={`/p/${projectSlug}/prompts`}
+      title={
+        <span className="flex items-center gap-2.5">
+          <IconSpark size={14} className="text-accent-600 dark:text-accent-400" />
+          Refine
+          <IconArrow size={12} className="text-ink-300" />
+          <Link href={`/p/${projectSlug}/prompts/${promptSlug}`} className="text-ink-500 hover:text-ink-800 dark:hover:text-ink-100">
+            {prompt.name}
+          </Link>
+          <IconArrow size={12} className="text-ink-300" />
+          <span className="font-mono text-ink-600 dark:text-ink-300">v{version.number}</span>
+        </span>
+      }
+      subtitle="Analyzers flag weaknesses and propose a better variant. Accept forks a new version."
       actions={
         <div className="flex gap-2">
           <form action={boundDiagnose}>
-            <button className="rounded bg-ink-900 dark:bg-ink-100 text-ink-50 dark:text-ink-900 px-3 py-1.5 text-sm font-medium">
-              Re-analyze
-            </button>
+            <Button type="submit" variant="accent">
+              <IconSpark size={13} /> Re-analyze
+            </Button>
           </form>
-          <Link href={`/p/${projectSlug}/prompts/${promptSlug}/v/${versionId}`} className="rounded border border-ink-300/70 dark:border-ink-700 px-2.5 py-1 text-sm">← version</Link>
+          <Link href={`/p/${projectSlug}/prompts/${promptSlug}/v/${versionId}`}>
+            <Button variant="secondary">← Back to version</Button>
+          </Link>
         </div>
       }
     >
       {suggestions.length === 0 ? (
-        <p className="text-sm text-ink-500">
-          No suggestions yet. Click <em>Re-analyze</em> to diagnose this version.
-        </p>
+        <Card className="p-10 text-center border-dashed">
+          <div className="mx-auto w-10 h-10 rounded-full bg-accent-50 dark:bg-accent-500/10 text-accent-600 dark:text-accent-400 flex items-center justify-center mb-3">
+            <IconSpark size={16} />
+          </div>
+          <div className="font-medium text-ink-800 dark:text-ink-100">No suggestions yet</div>
+          <p className="text-sm text-ink-500 mt-1 max-w-md mx-auto">
+            Click <em>Re-analyze</em> above. The five built-in analyzers scan
+            this version for vague verbs, missing role, missing output format,
+            redundancy, and under-specification.
+          </p>
+        </Card>
       ) : (
-        <ul className="space-y-6">
+        <ul className="space-y-5">
           {suggestions.map((s) => {
-            const diag = safeJson<Array<{ code: string; severity: string; detail: string; analyzer: string }>>(s.diagnosis) ?? [];
+            const diag = safeJson<Array<{ code: string; severity: "info" | "warn" | "error"; detail: string; analyzer: string }>>(s.diagnosis) ?? [];
             const boundAccept = acceptSuggestionAction.bind(null, projectSlug, promptSlug, s.id);
             const boundReject = rejectSuggestionAction.bind(null, projectSlug, promptSlug, versionId, s.id);
             return (
-              <li key={s.id} className="rounded border border-ink-200/70 dark:border-ink-800 p-4">
-                <div className="flex items-baseline gap-3 text-xs text-ink-500 mb-3">
-                  <span>{new Date(s.createdAt).toISOString().slice(0, 16).replace("T", " ")}</span>
-                  <span className="font-mono">{s.status}</span>
-                </div>
-
-                <div className="grid grid-cols-[1fr_2fr] gap-4">
-                  <section>
-                    <h3 className="text-xs uppercase tracking-wider text-ink-500 mb-2">Diagnostics</h3>
-                    {diag.length === 0 ? (
-                      <p className="text-sm text-ink-500">No findings.</p>
-                    ) : (
-                      <ul className="space-y-1.5 text-sm">
-                        {diag.map((f, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span
-                              className={`inline-block mt-1 h-1.5 w-1.5 rounded-full ${
-                                f.severity === "error"
-                                  ? "bg-rose-500"
-                                  : f.severity === "warn"
-                                    ? "bg-amber-500"
-                                    : "bg-ink-400"
-                              }`}
-                            />
-                            <span>
-                              <div className="font-mono text-xs text-ink-500">{f.code}</div>
-                              <div>{f.detail}</div>
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </section>
-
-                  <section>
-                    <h3 className="text-xs uppercase tracking-wider text-ink-500 mb-2">Proposed body</h3>
-                    <pre className="code whitespace-pre-wrap rounded border border-ink-200/70 dark:border-ink-800 p-3 bg-ink-100/30 dark:bg-ink-900/40 mb-3">{s.proposedBody}</pre>
-                    <div className="text-xs text-ink-500 mb-4">
-                      <strong>Rationale:</strong> {s.rationale}
+              <li key={s.id}>
+                <Card padded={false}>
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-ink-200/70 dark:border-ink-800/70">
+                    <div className="flex items-center gap-3">
+                      <Eyebrow>Suggestion</Eyebrow>
+                      <span className="font-mono text-[11px] text-ink-500">
+                        {new Date(s.createdAt).toISOString().slice(0, 16).replace("T", " ")}
+                      </span>
                     </div>
+                    <SuggestionStatusBadge status={s.status} />
+                  </div>
 
-                    {s.status === "pending" && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <form action={boundAccept} className="space-y-2">
-                          <input name="changeSummary" required placeholder="change summary *" className={inputCls} />
-                          <input name="expectedImprovement" placeholder="expected improvement" className={inputCls} />
-                          <button className="rounded-md bg-emerald-600 text-white px-3 py-1.5 text-sm font-medium">Accept → fork new version</button>
-                        </form>
-                        <form action={boundReject} className="space-y-2">
-                          <input name="reason" placeholder="reason (optional)" className={inputCls} />
-                          <button className="rounded-md border border-rose-400 text-rose-700 dark:text-rose-300 px-3 py-1.5 text-sm font-medium">Reject</button>
-                        </form>
+                  <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.8fr]">
+                    <section className="px-4 py-4 border-b lg:border-b-0 lg:border-r border-ink-200/70 dark:border-ink-800/70">
+                      <Eyebrow className="mb-3">Diagnostics ({diag.length})</Eyebrow>
+                      {diag.length === 0 ? (
+                        <p className="text-sm text-ink-500">No findings.</p>
+                      ) : (
+                        <ul className="space-y-2.5 text-sm">
+                          {diag.map((f, i) => (
+                            <li key={i} className="flex gap-2.5">
+                              <SeverityDot severity={f.severity} />
+                              <span className="min-w-0">
+                                <div className="font-mono text-[11px] text-ink-500">{f.code}</div>
+                                <div className="text-ink-800 dark:text-ink-100 leading-snug">{f.detail}</div>
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </section>
+
+                    <section className="px-4 py-4">
+                      <Eyebrow className="mb-2">Proposed body</Eyebrow>
+                      <pre className="codeblock rounded-lg border border-ink-200/70 dark:border-ink-800/70 bg-ink-50/40 dark:bg-ink-950/40 p-3 mb-3">
+                        {s.proposedBody}
+                      </pre>
+                      <div className="rounded-lg bg-accent-50/60 dark:bg-accent-500/5 border border-accent-200/50 dark:border-accent-500/20 p-3 mb-4">
+                        <div className="eyebrow mb-1">Rationale</div>
+                        <p className="text-[13px] text-ink-800 dark:text-ink-100">{s.rationale}</p>
                       </div>
-                    )}
-                  </section>
-                </div>
+
+                      {s.status === "pending" && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <form action={boundAccept} className="space-y-2">
+                            <Field label="Change summary" required>
+                              <Input name="changeSummary" required placeholder="Accept refinement proposal" />
+                            </Field>
+                            <Field label="Expected improvement">
+                              <Input name="expectedImprovement" placeholder="Hypothesis you can test" />
+                            </Field>
+                            <button className="w-full rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium px-3 py-1.5 shadow-soft">
+                              Accept → fork new version
+                            </button>
+                          </form>
+                          <form action={boundReject} className="space-y-2">
+                            <Field label="Reason">
+                              <Input name="reason" placeholder="Why reject (optional)" />
+                            </Field>
+                            <button className="w-full rounded-lg border border-rose-300 text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-sm font-medium px-3 py-1.5">
+                              Reject suggestion
+                            </button>
+                          </form>
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                </Card>
               </li>
             );
           })}
@@ -115,8 +155,28 @@ export default async function RefinePage({
   );
 }
 
-const inputCls =
-  "w-full rounded border border-ink-300/70 dark:border-ink-700 bg-transparent px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ink-500";
+function SeverityDot({ severity }: { severity: "info" | "warn" | "error" }) {
+  const color =
+    severity === "error"
+      ? "bg-rose-500"
+      : severity === "warn"
+        ? "bg-amber-500"
+        : "bg-ink-400";
+  return <span className={`mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${color}`} />;
+}
+
+function SuggestionStatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    pending:  "bg-accent-50 text-accent-700 ring-accent-200 dark:bg-accent-500/10 dark:text-accent-200",
+    accepted: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-200",
+    rejected: "bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-200",
+  };
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide ring-1 ${map[status] ?? map.pending}`}>
+      {status}
+    </span>
+  );
+}
 
 function safeJson<T>(s: string | null | undefined): T | null {
   if (!s) return null;
