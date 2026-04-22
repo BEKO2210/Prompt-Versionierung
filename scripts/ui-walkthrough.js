@@ -66,10 +66,25 @@ async function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
   try {
     console.log("=== Workspace ===");
+    // Pre-mark the tour completed so the first paint doesn't auto-open
+    // the spotlight; we'll snap it explicitly below.
+    await page.addInitScript(() => {
+      try { localStorage.setItem("prompt-tree:tour:completed", "1"); } catch {}
+    });
     await page.goto("http://localhost:4420/", { waitUntil: "networkidle" });
     await wait(500);
     await snap("01-workspace");
     await checkOverlaps("workspace");
+
+    console.log("=== Tutorial spotlight ===");
+    await page.evaluate(() => window.__startTour && window.__startTour());
+    await wait(700);
+    await snap("25-tour-step1");
+    await page.click('[data-act="tour-next"]').catch(() => {});
+    await wait(700);
+    await snap("26-tour-step2");
+    await page.click('[data-act="tour-skip"]').catch(() => {});
+    await wait(300);
 
     console.log("=== Settings ===");
     await page.goto("http://localhost:4420/#/settings", { waitUntil: "networkidle" });

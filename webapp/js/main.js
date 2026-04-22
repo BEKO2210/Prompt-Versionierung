@@ -41,6 +41,16 @@ import {
 
   setupGlobalKeyboard();
   hideSplash();
+
+  // First-visit onboarding: open the spotlight tour over real data.
+  // Skipped if the user has completed it before (localStorage marker).
+  // Wait a tick so the first paint has finished; then defer to the tour.
+  setTimeout(async () => {
+    const tour = await import("./tour.js");
+    tour.maybeAutoStart();
+    // Expose for the workspace topbar's "Tutorial" link.
+    window.__startTour = () => tour.start({ force: true });
+  }, 300);
 })();
 
 async function loadSeed() {
