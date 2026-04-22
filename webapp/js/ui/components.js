@@ -44,7 +44,7 @@ export function toast(msg) {
 export function modal({ title, sub, body, primary, secondary, onSubmit, onCancel }) {
   const root = document.getElementById("modal-root");
   root.innerHTML = `
-    <div class="modal-backdrop">
+    <div class="modal-backdrop" data-backdrop>
       <form class="modal" id="modal-form">
         <h2>${escapeHtml(title)}</h2>
         ${sub ? `<div class="modal-sub">${escapeHtml(sub)}</div>` : ""}
@@ -58,12 +58,14 @@ export function modal({ title, sub, body, primary, secondary, onSubmit, onCancel
     </div>`;
   const form = root.querySelector("#modal-form");
   const err = root.querySelector("#modal-error");
+  const backdrop = root.querySelector("[data-backdrop]");
 
-  function close() { root.innerHTML = ""; document.removeEventListener("keydown", onKey); }
-  function onKey(e) {
-    if (e.key === "Escape") { e.preventDefault(); close(); onCancel?.(); }
-  }
-  document.addEventListener("keydown", onKey);
+  function close() { root.innerHTML = ""; }
+
+  // Click on the backdrop (but not on the modal itself) cancels.
+  backdrop?.addEventListener("mousedown", (e) => {
+    if (e.target === backdrop) { close(); onCancel?.(); }
+  });
 
   root.querySelector('[data-mod="cancel"]')?.addEventListener("click", () => { close(); onCancel?.(); });
 

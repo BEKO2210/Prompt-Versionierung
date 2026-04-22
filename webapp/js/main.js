@@ -102,7 +102,20 @@ function pickView(route) {
 // ---------------------------------------------------------------------------
 function setupGlobalKeyboard() {
   document.addEventListener("keydown", (e) => {
-    // Ignore when typing in inputs/textareas (except ⌘K).
+    // Escape MUST be handled regardless of focus so the palette / modals
+    // can close while their input is focused.
+    if (e.key === "Escape") {
+      const paletteOpen = !!document.querySelector("#palette-root .palette");
+      const modalOpen = !!document.querySelector("#modal-root .modal");
+      if (paletteOpen || modalOpen) {
+        e.preventDefault();
+        if (paletteOpen) closePalette();
+        if (modalOpen) document.getElementById("modal-root").innerHTML = "";
+      }
+      return;
+    }
+
+    // Ignore typing in inputs/textareas except for ⌘K.
     const inField = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName) ||
       document.activeElement?.isContentEditable;
 
@@ -113,8 +126,6 @@ function setupGlobalKeyboard() {
       return;
     }
     if (inField) return;
-
-    if (e.key === "Escape") closePalette();
 
     if (e.key === "/") { e.preventDefault(); openPalette(); return; }
 

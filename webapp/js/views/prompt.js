@@ -127,53 +127,97 @@ function renderBranches({ prompt, version }) {
 }
 
 // --- rail: version tree ---
-// Matches the screenshot: each node is glyph + label, connected by
-// L-shaped lines using absolutely-positioned borders. Canonical nodes
-// have a filled green glyph, refinement nodes get a dashed purple ring.
+// Branch-based depth: a version's column equals the number of branch
+// changes between it and the root. Same-branch descendants stay at the
+// same x-position; forking to a different branch steps right by one.
+// Connector lines are drawn by L-shaped absolutely-positioned borders.
 function renderTree({ prompt, version }) {
-  const tree = buildTree(prompt.versions);
-  // Flatten with depth so we can lay out absolute connectors.
-  const flat = [];
-  (function walk(nodes, depth) {
-    for (const t of nodes) {
-      flat.push({ node: t.node, depth, children: t.children });
-      walk(t.children, depth + 1);
+  const byId = new Map(prompt.versions.map((v) => [v.id, v]));
+
+  // Branch depth per version, memoised.
+  const branchDepth = new Map();
+  function depthOf(v) {
+    if (branchDepth.has(v.id)) return branchDepth.get(v.id);
+    if (!v.parentVersionId) { branchDepth.set(v.id, 0); return 0; }
+    const parent = byId.get(v.parentVersionId);
+    if (!parent) { branchDepth.set(v.id, 0); return 0; }
+    const d = parent.createdOnBranchId === v.createdOnBranchId
+      ? depthOf(parent)
+      : depthOf(parent) + 1;
+    branchDepth.set(v.id, d);
+    return d;
+  }
+  for (const v of prompt.versions) depthOf(v);
+
+  // Linear order for display: DFS from each root, sorted by version number.
+  const roots = prompt.versions.filter((v) => !v.parentVersionId || !byId.has(v.parentVersionId));
+  const childrenOf = new Map();
+  for (const v of prompt.versions) {
+    if (v.parentVersionId) {
+      const list = childrenOf.get(v.parentVersionId) || [];
+      list.push(v); childrenOf.set(v.parentVersionId, list);
     }
-  })(tree, 0);
+  }
+  for (const k of childrenOf.keys()) childrenOf.get(k).sort((a, b) => a.number - b.number);
+  const ordered = [];
+  (function walk(v) {
+    ordered.push(v);
+    for (const c of childrenOf.get(v.id) || []) walk(c);
+  })(roots.sort((a, b) => a.number - b.number)[0] || prompt.versions[0]);
 
   const branchHeadIds = new Set(prompt.branches.map((b) => b.headVersionId));
+  const canonicalHeadId = prompt.branches.find((b) => b.id === prompt.canonicalBranchId)?.headVersionId;
   const refinementEdgesTo = new Set(
     (prompt.lineageEdges || []).filter((e) => e.kind === "refinement").map((e) => e.toVersionId),
   );
 
-  const rows = flat.map((f) => {
-    const v = f.node;
-    const isCanonicalHead = v.id === (prompt.branches.find((b) => b.id === prompt.canonicalBranchId)?.headVersionId);
+  const ROW_PX = 18;                // column stride
+  const BASE   = 12;                // left margin of column 0
+  const GLYPH  = 6;                 // half glyph width
+
+  const rows = ordered.map((v) => {
+    const parent = v.parentVersionId ? byId.get(v.parentVersionId) : null;
+    const myDepth = branchDepth.get(v.id) ?? 0;
+    const parentDepth = parent ? (branchDepth.get(parent.id) ?? 0) : 0;
+    const isCanonicalHead = v.id === canonicalHeadId;
     const isBranchHead = branchHeadIds.has(v.id);
     const isSelected = version && version.id === v.id;
     const isRefinement = refinementEdgesTo.has(v.id);
+
     const glyphCls = [
       isCanonicalHead ? "canonical" : "",
       !isCanonicalHead && isBranchHead ? "exp" : "",
       isRefinement ? "refine" : "",
       isSelected ? "head" : "",
     ].filter(Boolean).join(" ");
-    const indent = 12 + f.depth * 18;
 
-    // Vertical connector from parent (drawn above this row's glyph).
+    const paddingLeft = BASE + myDepth * ROW_PX;
+
+    // Connector from parent. Two cases:
+    //   same branch: straight vertical line in parent's column, continuing
+    //     down to this row's glyph center.
+    //   different branch: vertical from parent's column going down to this
+    //     row, then horizontal into this row's column (L-shape).
     const connectors = [];
-    if (f.depth > 0) {
-      const x = 12 + (f.depth - 1) * 18 + 6;
-      connectors.push(
-        `<span class="tree-connector ${isRefinement ? "dashed" : ""}"
-               style="left:${x}px;top:0;bottom:50%;"></span>`,
-        `<span class="tree-connector horiz ${isRefinement ? "dashed" : ""}"
-               style="left:${x}px;top:50%;width:12px;"></span>`,
-      );
+    if (parent) {
+      if (myDepth === parentDepth) {
+        // Straight vertical in the parent's column.
+        const x = BASE + parentDepth * ROW_PX + GLYPH;
+        connectors.push(`<span class="tree-connector ${isRefinement ? "dashed" : ""}" style="left:${x}px;top:-50%;bottom:50%;"></span>`);
+      } else {
+        // L-shape: vertical in parent's column + horizontal into mine.
+        const xParent = BASE + parentDepth * ROW_PX + GLYPH;
+        const xMine   = BASE + myDepth  * ROW_PX + GLYPH;
+        connectors.push(
+          `<span class="tree-connector ${isRefinement ? "dashed" : ""}" style="left:${xParent}px;top:-50%;bottom:50%;"></span>`,
+          `<span class="tree-connector horiz ${isRefinement ? "dashed" : ""}" style="left:${xParent}px;top:50%;width:${xMine - xParent}px;"></span>`,
+        );
+      }
     }
+
     return `
       <div class="tree-node ${isSelected ? "selected" : ""}" data-version-id="${escapeHtml(v.id)}"
-           style="padding-left:${indent}px;position:relative">
+           style="padding-left:${paddingLeft}px;position:relative">
         ${connectors.join("")}
         <span class="glyph ${glyphCls}"></span>
         <span class="label">
@@ -388,7 +432,7 @@ function renderRunsTab({ project, prompt, version }) {
               <td class="mono">${escapeHtml(relTime(r.createdAt))}</td>
               <td>${tc ? escapeHtml(tc.name) : '<span style="color:var(--fg-faint)">ad-hoc</span>'}</td>
               <td>${mp ? escapeHtml(mp.name) : "—"}</td>
-              <td>${statusPill(r.status)}</td>
+              <td>${runStatusPill(r.status)}</td>
               <td class="right">${r.latencyMs ?? "—"} ms</td>
               <td class="right">${(r.inputTokens ?? "?")}/${(r.outputTokens ?? "?")}</td>
               <td class="right">${scoreCell(score)}</td>
@@ -402,6 +446,18 @@ function findTestCase(project, id) {
   for (const d of project.datasets || [])
     for (const tc of d.testCases || []) if (tc.id === id) return tc;
   return null;
+}
+
+// Small pill for run statuses (distinct palette from version statuses).
+function runStatusPill(status) {
+  const map = {
+    succeeded: ["var(--green-50)",  "var(--green-200)", "var(--green-700)"],
+    running:   ["var(--blue-50)",   "var(--blue-200)",  "var(--blue-700)"],
+    queued:    ["var(--bg-sunk)",   "var(--border)",    "var(--fg-muted)"],
+    failed:    ["var(--rose-50)",   "var(--rose-200)",  "var(--rose-700)"],
+  };
+  const [bg, bd, fg] = map[status] || map.queued;
+  return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:500;padding:2px 8px;border-radius:999px;background:${bg};border:1px solid ${bd};color:${fg}"><span style="width:5px;height:5px;border-radius:50%;background:${fg}"></span>${escapeHtml(status)}</span>`;
 }
 
 // --- Tab: Lineage ---
