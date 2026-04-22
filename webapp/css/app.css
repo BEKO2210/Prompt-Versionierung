@@ -1119,3 +1119,230 @@ input, textarea, select { -webkit-appearance: none; appearance: none; }
 
 [data-theme="dark"] .diff tr.added td.right { background: rgba(16,185,129,.08); color: #6ee7b7; }
 [data-theme="dark"] .diff tr.removed td.left { background: rgba(244,63,94,.08); color: #fda4af; }
+
+/* ---------------------------------------------------------------------------
+   Wrappers that keep tables / diffs / charts from pushing the layout wider
+   than its container at ANY viewport. These classes are applied inline
+   by views that render wide tabular content.
+   --------------------------------------------------------------------------- */
+.scrollx { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+.scrollx > * { min-width: 0; }
+
+/* Prevent any single element from pushing the page wider than the viewport.
+   This is belt-and-braces — the per-view styles above still constrain each
+   widget; this just keeps overflow CONTAINED inside the main pane. */
+.main { overflow-x: hidden; min-width: 0; }
+.workspace > .main { min-width: 0; }
+
+/* Tabs become horizontally scrollable when they can't all fit.
+   We rely on `min-width: 0` on the flex parent so the overflow actually
+   clips rather than forcing parent expansion. */
+.tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; min-width: 0; }
+.tabs::-webkit-scrollbar { height: 3px; }
+.tab { white-space: nowrap; flex-shrink: 0; }
+
+/* ---------------------------------------------------------------------------
+   Tablet breakpoint — collapse the 260px rail into a collapsible top panel
+   so the main content has room. Desktop grid stays intact above this.
+   --------------------------------------------------------------------------- */
+@media (max-width: 1040px) {
+  /* Topbar: let it wrap and hide the keyboard-shortcut row (which is
+     decorative on tablet-sized screens). */
+  .topbar { flex-wrap: wrap; height: auto; row-gap: 6px; padding-top: 6px; padding-bottom: 6px; }
+  .topbar-shortcuts { display: none; }
+  .topbar-spacer { flex: 1 1 100%; height: 0; }
+  .topbar-counters { flex-wrap: wrap; gap: 10px; }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+  .rail {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    max-height: none;
+  }
+  .rail-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    padding: 14px 18px;
+  }
+  .rail-section { margin-bottom: 0; }
+  /* The version tree can still overflow horizontally; let it scroll within
+     its own card instead of pushing the page wider. */
+  .tree { overflow-x: auto; }
+  .legend { padding: 8px 18px; }
+
+  /* The Split (variables + metadata) stacks at its own 1100px breakpoint
+     already; nothing to change here. */
+
+  /* Compare page's 4-col pick form wraps. */
+  #pick-form {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  #pick-form > *:nth-child(2) { display: none !important; }
+  #pick-form button[type="submit"] { grid-column: span 2; justify-self: end; }
+
+  /* Side-by-side diff header cards on Compare */
+  .main > div[style*="grid-template-columns:1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Project dashboard 1.4fr / 1fr -> 1col on narrow screens */
+  .main > div[style*="grid-template-columns:1.4fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Trend tab: chart (1fr) + sidebar (200px) → stacked */
+  .main div[style*="grid-template-columns:1fr 200px"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Mobile breakpoint — compact density, wrapping topbars, stacked forms,
+   readable tap targets.
+   --------------------------------------------------------------------------- */
+@media (max-width: 720px) {
+  .topbar {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 6px 10px;
+    gap: 8px 10px;
+    row-gap: 6px;
+  }
+  .topbar-spacer { flex: 1 1 100%; height: 0; }
+  .topbar-shortcuts { display: none; }
+  .topbar-counters { flex-wrap: wrap; gap: 8px; }
+  .topbar-crumb { font-size: 12px; flex-wrap: wrap; }
+  .topbar-action { padding: 6px 10px; font-size: 12.5px; }
+  /* Long icon+text actions on the workspace topbar stay legible with a
+     bit of breathing room. */
+  .topbar-action, .topbar-logo { min-height: 32px; }
+
+  .main { padding: 16px 14px 48px; }
+  .main-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .main-head h1 { font-size: 20px; }
+  .main-head .actions {
+    gap: 8px;
+    width: 100%;
+  }
+  .main-head .actions .btn { flex: 1 1 140px; justify-content: center; min-height: 36px; }
+
+  /* Rail sections on mobile: stack single column, don't let card grid
+     explode. */
+  .rail-content { grid-template-columns: 1fr; padding: 12px 14px; }
+
+  /* Card grids shrink below 240px is hopeless — keep auto-fill but
+     relax the min so cards don't blow the viewport. */
+  .cards-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+
+  /* Tables + diffs + release-card: confine their width with a scroll
+     instead of overflowing the page. */
+  .table,
+  .diff,
+  .release-card {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .diff table, .table { min-width: 480px; }
+
+  /* Release card: 2-col → stacked */
+  .release-card {
+    grid-template-columns: 1fr;
+    display: grid;
+    gap: 10px;
+  }
+
+  /* Key-value lists: stack row labels above values */
+  .kv .row,
+  .drawer-kv { grid-template-columns: 1fr; row-gap: 2px; }
+  .kv .row { padding: 8px 12px; }
+  .kv .row .k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-faint); }
+
+  /* Var-row: grid collapses to two rows */
+  .var-row { grid-template-columns: auto auto 1fr; row-gap: 4px; }
+  .var-row .desc { grid-column: 1 / -1; text-align: left; }
+
+  /* Compare pick form single column.
+     NOTE: the tablet block above sets `grid-column: span 2` on the submit
+     button, which would force implicit columns; undo that here. */
+  #pick-form {
+    grid-template-columns: minmax(0, 1fr) !important;
+    row-gap: 10px;
+  }
+  #pick-form > *:nth-child(2) { display: none !important; }
+  #pick-form button[type="submit"] {
+    grid-column: auto !important;
+    width: 100%;
+    justify-self: stretch;
+  }
+  #pick-form select { width: 100%; min-width: 0; }
+
+  /* Settings: the inline [input][Save][Remove] form wraps onto 2 rows. */
+  .form-card form[data-form] { flex-wrap: wrap; }
+  .form-card form[data-form] input[name="key"] { flex: 1 1 100%; }
+  .form-card form[data-form] .btn { flex: 1 1 auto; justify-content: center; min-height: 36px; }
+
+  /* Provider headers wrap their "get a key" link onto its own line. */
+  .form-card [data-provider] > div { flex-direction: column; }
+  .form-card [data-provider] a[href^="http"] { margin-left: 0 !important; }
+
+  /* Help TOC links: more tappable. */
+  .help-toc nav a { padding: 8px 0 8px 12px; min-height: 36px; }
+  .help-content .markdown h1 { font-size: 22px; }
+  .help-content .markdown h2 { font-size: 17px; }
+  .help-content .markdown table { display: block; overflow-x: auto; }
+
+  /* Tabs: nudge size for fingers, keep a thin scroll shadow */
+  .tab { padding: 10px 0; font-size: 13.5px; }
+  .tabs { gap: 18px; }
+
+  /* Small buttons (e.g. Show blame, Export all JSON) get a tap-sized minimum. */
+  .btn.sm { min-height: 32px; padding: 6px 10px; font-size: 12px; }
+  /* Inline "get a key" links in Settings need a proper tap zone. */
+  .form-card a[href^="http"] { display: inline-block; padding: 6px 0; min-height: 32px; }
+
+  /* Drawer: keep accessible on narrow screens */
+  .drawer { width: 100vw; }
+  .drawer-body { padding: 14px 14px 28px; }
+
+  /* Chart SVG: already width: 100% via container, but make the wrapper
+     container scrollable if the viewBox is locked. */
+  .chart { padding: 6px 6px 2px; }
+
+  /* Timeline card padding relaxed; inline anchors get a touch more
+     vertical padding so they're easier to tap on mobile. */
+  .timeline-item { padding: 6px 0 6px 12px; }
+  .timeline-item .body a { padding: 2px 0; display: inline-block; }
+  /* Key-value rows: the primary anchor (e.g. "v3 · Few-shot examples" in
+     the Lineage tab) needs a proper touch target. */
+  .kv .row .v a { padding: 6px 0; display: inline-block; line-height: 1.4; }
+
+  /* Branch row fits within the rail card */
+  .branch-row { grid-template-columns: 12px 1fr auto; gap: 6px; }
+
+  /* Modal input: comfortable on-screen keyboard spacing */
+  .modal input, .modal textarea, .modal select { font-size: 16px; }
+  .form-row input, .form-row textarea, .form-row select { font-size: 16px; }
+
+  /* Proposal / activity: avoid hard 400+ elements */
+  .comment-head, .comment-text { font-size: 12.5px; }
+}
+
+/* ---------------------------------------------------------------------------
+   Tiny phones (≤ 380px) — last-resort compressions
+   --------------------------------------------------------------------------- */
+@media (max-width: 380px) {
+  .main { padding: 12px 10px 40px; }
+  .topbar { padding: 6px 8px; }
+  .topbar-logo span:last-child { display: none; } /* hide wordmark, keep sigil */
+  .main-head .actions .btn { flex: 1 1 100%; }
+}
+
