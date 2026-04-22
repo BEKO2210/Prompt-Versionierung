@@ -556,7 +556,8 @@ function renderRunsTab({ project, prompt, version }) {
       <thead>
         <tr>
           <th>When</th><th>Test case</th><th>Model</th><th>Status</th>
-          <th class="right">Latency</th><th class="right">Tokens</th><th class="right">Score</th><th></th>
+          <th class="right">Latency</th><th class="right">Tokens</th>
+          <th class="right">Cost</th><th class="right">Score</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -568,8 +569,10 @@ function renderRunsTab({ project, prompt, version }) {
             ? `<span title="${escapeAttr(r.mockedReason || 'Mock fallback used')}" style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;background:var(--amber-50);color:var(--amber-700);border:1px solid var(--amber-200);font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase">mock</span>`
             : "";
           const errorRow = r.status === "failed" && r.error
-            ? `<tr><td></td><td colspan="7" style="color:var(--rose-700);font-size:12px;padding-top:0">${escapeHtml(r.error)}</td></tr>`
+            ? `<tr><td></td><td colspan="8" style="color:var(--rose-700);font-size:12px;padding-top:0">${escapeHtml(r.error)}</td></tr>`
             : "";
+          // Cost cell: filled async by the post-render pass below.
+          // Falls back to "—" when we can't compute (no model resolved).
           return `
             <tr class="run-row" data-run-id="${escapeAttr(r.id)}">
               <td class="mono">${escapeHtml(relTime(r.createdAt))}</td>
@@ -577,7 +580,8 @@ function renderRunsTab({ project, prompt, version }) {
               <td>${mp ? escapeHtml(mp.name) : "—"}${mockBadge}</td>
               <td>${runStatusPill(r.status)}</td>
               <td class="right">${r.latencyMs ?? "—"} ms</td>
-              <td class="right">${(r.inputTokens ?? "?")}/${(r.outputTokens ?? "?")}</td>
+              <td class="right" data-cell="tokens-${escapeAttr(r.id)}">${(r.inputTokens ?? "?")}/${(r.outputTokens ?? "?")}</td>
+              <td class="right" data-cell="cost-${escapeAttr(r.id)}"><span style="color:var(--fg-faint)">…</span></td>
               <td class="right">${scoreCell(score)}</td>
               <td class="right" style="color:var(--fg-faint);font-size:11px">open ↗</td>
             </tr>${errorRow}`;
@@ -747,6 +751,50 @@ export function bindPromptView(root, route) {
     row.addEventListener("click", () => openRunDrawer(ctx, row.dataset.runId));
   });
   root.querySelector('[data-act="export-runs"]')?.addEventListener("click", () => exportRunsBundle(ctx));
+
+  // --- runs tab: fill in the async cost cells ---
+  fillRunCostCells(ctx, root).catch((err) => console.warn("cost fill failed:", err));
+}
+
+// Walks the visible runs table and writes a real-or-estimated cost into
+// each `[data-cell="cost-<runId>"]` cell, plus an "≈ in/out" badge into
+// the tokens cell when the row had no provider-reported tokens.
+async function fillRunCostCells(ctx, root) {
+  const cells = root.querySelectorAll('[data-cell^="cost-"]');
+  if (!cells.length) return;
+  const { tokensFor, formatCost } = await import("../tokens.js");
+  const { costFor } = await import("../pricing.js");
+  const { prompt, project, version } = ctx;
+  const runs = (prompt.runs || []).filter((r) => r.versionId === version.id);
+  for (const r of runs) {
+    const profile = project.modelProfiles.find((m) => m.id === r.modelProfileId);
+    if (!profile) continue;
+    let inT = r.inputTokens, outT = r.outputTokens;
+    let estimated = false;
+    if (inT == null && r.renderedPrompt) {
+      const t = await tokensFor(r.renderedPrompt, profile.modelId);
+      inT = t.tokens; estimated = true;
+    }
+    if (outT == null && r.rawOutput) {
+      const t = await tokensFor(r.rawOutput, profile.modelId);
+      outT = t.tokens; estimated = true;
+    }
+    const tokenCell = root.querySelector(`[data-cell="tokens-${r.id}"]`);
+    if (tokenCell) {
+      tokenCell.innerHTML = (inT != null || outT != null)
+        ? `${estimated ? "≈ " : ""}${(inT ?? "?")}/${(outT ?? "?")}`
+        : "—";
+    }
+    const costCell = root.querySelector(`[data-cell="cost-${r.id}"]`);
+    if (!costCell) continue;
+    const c = costFor({
+      provider: profile.provider, modelId: profile.modelId,
+      inputTokens: inT || 0, outputTokens: outT || 0,
+    });
+    costCell.innerHTML = c.total === 0 && profile.provider === "mock"
+      ? `<span style="color:var(--fg-faint)">$0</span>`
+      : `<span title="in ${formatCost(c.in)} · out ${formatCost(c.out)}">${formatCost(c.total)}</span>`;
+  }
 }
 
 // Expose a shortcut map for main.js keyboard handler.
@@ -831,14 +879,25 @@ function openRunModal({ project, prompt, version }) {
     return;
   }
 
-  // Bind a live "this profile will use the real API / will fall back to mock"
-  // hint inside the modal. Reads the secrets store on every change.
+  // Bind two live hints inside the modal:
+  //   1. provider status (real vs mock fallback)
+  //   2. token + cost estimate of the rendered prompt with the current
+  //      bindings — recomputes on every keystroke / model change.
   setTimeout(async () => {
     const sel = document.getElementById("run-profile");
     const status = document.getElementById("provider-status");
-    if (!sel || !status) return;
+    const cost = document.getElementById("cost-estimate");
+    const bindingsEl = document.querySelector('textarea[name="bindings"]');
+    const tcSel = document.querySelector('select[name="testCaseId"]');
+    if (!sel) return;
+
     const { describeProvider } = await import("../adapters/models/registry.js");
-    const update = async () => {
+    const { tokensFor, formatCost } = await import("../tokens.js");
+    const { costFor } = await import("../pricing.js");
+    const { render } = await import("../domain.js");
+
+    const updateProvider = async () => {
+      if (!status) return;
       const opt = sel.selectedOptions[0];
       const provider = opt?.dataset.provider || "mock";
       const desc = await describeProvider(provider);
@@ -846,8 +905,51 @@ function openRunModal({ project, prompt, version }) {
         ? `<span style="color:var(--green-700)">●</span> ${escapeHtml(desc.label)}`
         : `<span style="color:var(--amber-700)">●</span> ${escapeHtml(desc.label)} <a href="#/settings" style="color:var(--accent-fg);text-decoration:underline">Open Settings →</a>`;
     };
-    sel.addEventListener("change", update);
-    update();
+
+    let pending = 0;
+    const updateCost = async () => {
+      if (!cost) return;
+      const opt = sel.selectedOptions[0];
+      const profileId = sel.value;
+      const profile = (project.modelProfiles || []).find((m) => m.id === profileId);
+      if (!profile) { cost.textContent = ""; return; }
+
+      // Build effective bindings: test case's inputVariables overlaid by
+      // the textarea (so the user can override).
+      let bindings = {};
+      const tcId = tcSel?.value;
+      if (tcId) {
+        const tc = (project.datasets || []).flatMap((d) => d.testCases || []).find((c) => c.id === tcId);
+        if (tc?.inputVariables) bindings = { ...tc.inputVariables };
+      }
+      try {
+        const extra = bindingsEl?.value ? JSON.parse(bindingsEl.value) : {};
+        bindings = { ...bindings, ...extra };
+      } catch { /* invalid JSON — ignore for the estimate */ }
+
+      let rendered;
+      try { rendered = render(version.body, version.variables || [], bindings); }
+      catch { rendered = version.body; }
+
+      const myToken = ++pending;
+      cost.innerHTML = `<span style="color:var(--fg-faint)">estimating…</span>`;
+      const r = await tokensFor(rendered, profile.modelId);
+      if (myToken !== pending) return; // stale — newer request in flight
+      const c = costFor({
+        provider: profile.provider, modelId: profile.modelId,
+        inputTokens: r.tokens, outputTokens: 0,
+      });
+      const methodLabel = r.method === "tiktoken" ? "" : "≈ ";
+      cost.innerHTML =
+        `<span>${methodLabel}<strong>${r.tokens.toLocaleString()}</strong> input tokens</span>` +
+        `<span style="margin-left:8px;color:var(--fg-faint)">~${formatCost(c.in)} in · output billed at ${formatCost(c.rate.out / 1_000_000)} / token</span>`;
+    };
+
+    sel.addEventListener("change", () => { updateProvider(); updateCost(); });
+    bindingsEl?.addEventListener("input", () => updateCost());
+    tcSel?.addEventListener("change", () => updateCost());
+    await updateProvider();
+    await updateCost();
   }, 0);
 
   modal({
@@ -866,7 +968,8 @@ function openRunModal({ project, prompt, version }) {
           ${cases.map((c) => `<option value="${escapeAttr(c.id)}">${escapeHtml(c.datasetName)} · ${escapeHtml(c.name)}</option>`).join("")}
         </select></div>
       <div class="row"><label>Variable bindings (JSON)</label>
-        <textarea name="bindings" placeholder='{"ticket":"I was charged twice."}'>${escapeHtml(JSON.stringify(suggested, null, 2))}</textarea></div>
+        <textarea name="bindings" placeholder='{"ticket":"I was charged twice."}'>${escapeHtml(JSON.stringify(suggested, null, 2))}</textarea>
+        <div id="cost-estimate" class="helper" style="margin-top:6px;font-size:12px"></div></div>
       <div class="row"><label>Evaluators</label>
         <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:13px">
           <label><input type="checkbox" name="ev_regex" checked> Regex / contains</label>
@@ -1059,13 +1162,22 @@ function openRunDrawer(ctx, runId) {
 
   const headerMeta = `${escapeHtml(env.run.id)} · v${env.version?.number ?? "?"}`;
 
+  // Tokens row: show real numbers when the provider returned them; mark
+  // the cell as `data-tokens-row` so we can fill in an estimate
+  // asynchronously when they are missing.
+  const tokensValue =
+    (env.usage.inputTokens != null || env.usage.outputTokens != null)
+      ? `in ${env.usage.inputTokens ?? "?"} · out ${env.usage.outputTokens ?? "?"}`
+      : `<span style="color:var(--fg-faint)">computing estimate…</span>`;
+
   const body = `
     <div class="drawer-section">
       <div class="drawer-kv">
         <div class="k">Status</div><div class="v">${escapeHtml(env.run.status)}${env.run.mocked ? " · mock fallback" : ""}</div>
         <div class="k">Started</div><div class="v">${escapeHtml(env.run.startedAt || "?")}</div>
         <div class="k">Latency</div><div class="v">${env.run.latencyMs ?? "—"} ms</div>
-        <div class="k">Tokens</div><div class="v">in ${env.usage.inputTokens ?? "?"} · out ${env.usage.outputTokens ?? "?"}</div>
+        <div class="k">Tokens</div><div class="v" data-tokens-row>${tokensValue}</div>
+        <div class="k">Cost</div><div class="v" data-cost-row><span style="color:var(--fg-faint)">computing…</span></div>
         <div class="k">Provider</div><div class="v">${escapeHtml(env.model.provider || "?")} · ${escapeHtml(env.model.modelId || "?")}</div>
         <div class="k">Settings</div><div class="v">T=${env.model.temperature ?? "?"} · max=${env.model.maxTokens ?? "?"}</div>
         ${env.run.providerResponseId ? `<div class="k">Response id</div><div class="v">${escapeHtml(env.run.providerResponseId)}</div>` : ""}
@@ -1128,6 +1240,44 @@ function openRunDrawer(ctx, runId) {
         downloadJSON(fileNameForRun(env), env);
         toast("Downloaded run JSON");
       });
+      // Fill in token + cost rows asynchronously. Real numbers when the
+      // provider returned them; tiktoken / chars-4 estimate otherwise.
+      (async () => {
+        const { tokensFor, formatCost } = await import("../tokens.js");
+        const { costFor } = await import("../pricing.js");
+        const tokenRow = root.querySelector("[data-tokens-row]");
+        const costRow  = root.querySelector("[data-cost-row]");
+        if (!tokenRow || !costRow) return;
+
+        let inT = env.usage.inputTokens;
+        let outT = env.usage.outputTokens;
+        let inMethod = "real", outMethod = "real";
+        if (inT == null && env.input.renderedPrompt) {
+          const r = await tokensFor(env.input.renderedPrompt, env.model.modelId);
+          inT = r.tokens; inMethod = r.method;
+        }
+        if (outT == null && env.output.raw) {
+          const r = await tokensFor(env.output.raw, env.model.modelId);
+          outT = r.tokens; outMethod = r.method;
+        }
+        const isExact = inMethod === "real" && outMethod === "real";
+        const isTiktoken = (inMethod === "tiktoken" || inMethod === "real")
+                       && (outMethod === "tiktoken" || outMethod === "real");
+        const tokenLabel = isExact
+          ? `in ${inT?.toLocaleString() ?? "?"} · out ${outT?.toLocaleString() ?? "?"}`
+          : `<span>${(isTiktoken ? "" : "≈ ") + (inT?.toLocaleString() ?? "?")} in · ${(outT?.toLocaleString() ?? "?")} out</span>` +
+            ` <span style="color:var(--fg-faint);font-size:11px;margin-left:6px">${isTiktoken ? "tiktoken" : "estimated"}</span>`;
+        tokenRow.innerHTML = tokenLabel;
+
+        const c = costFor({
+          provider: env.model.provider, modelId: env.model.modelId,
+          inputTokens: inT || 0, outputTokens: outT || 0,
+        });
+        const tag = c.rate.source === "exact" ? "" : ` · <span style="color:var(--fg-faint)">rate: ${c.rate.source}</span>`;
+        costRow.innerHTML =
+          `<span><strong>${formatCost(c.total)}</strong> total</span>` +
+          ` <span style="color:var(--fg-faint);margin-left:6px">${formatCost(c.in)} in + ${formatCost(c.out)} out${tag}</span>`;
+      })().catch((err) => console.warn("token/cost fill failed:", err));
     },
   });
 }

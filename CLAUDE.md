@@ -84,8 +84,8 @@ sub-bullets in place. Done items move to §2.
 | B1.3 | Real OpenAI adapter | **done** | `adapters/models/openai.js`; standard chat completions; o-series uses `max_completion_tokens` and folds `system` into a leading user header; error-mapping mirrors Anthropic |
 | B1.4 | Real Google Gemini adapter | **done** | `adapters/models/gemini.js`; auth via `x-goog-api-key` header (never in URL); contents/parts shape; system → `systemInstruction`; safety-block → typed error |
 | B2 | **Standardised run output format** | **done** | `webapp/js/runFormat.js` produces `prompt-tree-run/1` envelope per run + `prompt-tree-runs/1` bundle per version; right-side drawer for run detail with Copy/Download JSON; "Export all" on the Runs tab; full schema documented in `docs/run-format.md` (with stability guarantee) |
-| B3 | **Token counting via js-tiktoken** | next | cost prediction in run dialog + retro on existing runs; reuses already-vendored js-tiktoken |
-| B4 | **Tutorial onboarding** | pending | first-run interactive tour over real demo data |
+| B3 | **Token counting + cost prediction** | **done** | `pricing.js` per-model rates ($/M tokens) with longest-prefix family match; `tokens.js` wraps js-tiktoken with a cache + chars/4 fallback for non-OpenAI; live "≈ N input tokens · ~$X" in Run modal; retro Token + Cost in Run drawer + new Cost column in Runs table |
+| B4 | **Tutorial onboarding** | next | first-run interactive tour over real demo data |
 | B5 | **Info / Help page** | pending | one-page reference: every concept, every keyboard shortcut |
 
 ### 3.B Phase C — Differentiators
