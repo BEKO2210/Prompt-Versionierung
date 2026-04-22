@@ -2,9 +2,16 @@
 
 import { html, escapeHtml, icon, brandMark, statusPill, scoreCell } from "../ui/components.js";
 import { getState } from "../store.js";
-import { diffText } from "../domain.js";
+import { diffText, abFromScores } from "../domain.js";
 import * as services from "../services.js";
 import { navigate } from "../router.js";
+
+// Threshold above which a run-score counts as a "pass" for the Wilson-
+// based A/B test. 0.5 matches how evaluators in this app are built: the
+// regex/schema evaluators emit 0 or 1 already; similarity / rubric
+// evaluators emit 0..1 and anything ≥ 0.5 is by convention "acceptable".
+// Exposed as a constant so the sidebar can label it.
+const PASS_THRESHOLD = 0.5;
 
 export function renderCompareView(route) {
   const s = getState();
@@ -90,7 +97,9 @@ function renderDiff(project, prompt, a, b) {
       <div class="eyebrow" style="margin-bottom:8px">Run evidence</div>
       ${evidence.length === 0
         ? `<div class="empty"><div class="sub">No overlapping (test case × model) runs. Run the same pair on both sides to see paired scores.</div></div>`
-        : `<table class="table">
+        : `
+          ${renderAbSummary(evidence)}
+          <table class="table">
              <thead><tr>
                <th>Test case</th><th>Model</th><th class="right">A</th><th class="right">B</th><th class="right">Δ</th>
              </tr></thead>
@@ -98,6 +107,60 @@ function renderDiff(project, prompt, a, b) {
            </table>`}
     </div>
   `;
+}
+
+// A/B summary: pass-rate per side with Wilson 95% CI, then the signed
+// difference with a 95% Newcombe CI. Shows a "significant" badge when
+// 0 is outside the diff CI — the claim A beats B (or vice versa) can be
+// supported at α=0.05 on this sample.
+function renderAbSummary(evidence) {
+  const pairs = evidence.map((r) => ({
+    a: r.a?.score ?? null,
+    b: r.b?.score ?? null,
+  }));
+  const r = abFromScores(pairs, PASS_THRESHOLD);
+  const pct = (x) => Math.round(x * 100) + "%";
+  const signed = (x) => (x > 0 ? "+" : "") + pct(x);
+  const enoughData = r.a.n > 0 && r.b.n > 0;
+
+  const badge = !enoughData
+    ? `<span class="sig-badge sig-none">insufficient runs</span>`
+    : r.significant
+      ? `<span class="sig-badge sig-${r.direction > 0 ? "up" : "down"}">
+           ${icon("check", { size: 11 })} ${r.direction > 0 ? "B &gt; A" : "A &gt; B"} at 95%
+         </span>`
+      : `<span class="sig-badge sig-ns">not significant</span>`;
+
+  const ciText = enoughData
+    ? `95% CI [${signed(r.lower)}, ${signed(r.upper)}]`
+    : `need ≥1 paired run on each side`;
+
+  return `
+    <div class="ab-summary">
+      <div class="ab-side">
+        <div class="ab-side-label">A pass rate</div>
+        <div class="ab-side-value">${r.a.n ? `${pct(r.a.p)} <span class="ab-side-n">(${r.a.successes}/${r.a.n})</span>` : "—"}</div>
+        <div class="ab-side-ci">${r.a.n ? `95% CI ${pct(r.a.lower)}–${pct(r.a.upper)}` : ""}</div>
+      </div>
+      <div class="ab-center">
+        <div class="ab-delta ${r.direction > 0 ? "good" : r.direction < 0 ? "bad" : ""}">
+          ${enoughData ? (Number.isNaN(r.diff) ? "—" : signed(r.diff)) : "—"}
+        </div>
+        <div class="ab-delta-label">Δ (B − A)</div>
+        <div class="ab-ci">${escapeHtml(ciText)}</div>
+        <div class="ab-badge">${badge}</div>
+      </div>
+      <div class="ab-side">
+        <div class="ab-side-label">B pass rate</div>
+        <div class="ab-side-value">${r.b.n ? `${pct(r.b.p)} <span class="ab-side-n">(${r.b.successes}/${r.b.n})</span>` : "—"}</div>
+        <div class="ab-side-ci">${r.b.n ? `95% CI ${pct(r.b.lower)}–${pct(r.b.upper)}` : ""}</div>
+      </div>
+    </div>
+    <div class="ab-note">
+      Pass = evaluator score ≥ ${(PASS_THRESHOLD * 100).toFixed(0)}%. CI is Wilson (per side) +
+      Newcombe method 10 (difference). Significant means the 95% CI for B − A
+      does not cross zero.
+    </div>`;
 }
 
 function side(label, v) {
