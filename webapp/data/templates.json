@@ -1,0 +1,139 @@
+{
+  "format": "prompt-tree-template-library/1",
+  "generatedAt": 1714000000000,
+  "version": "2026.04-starter",
+  "templates": [
+    {
+      "format": "prompt-tree-template/1",
+      "id": "ticket-classifier",
+      "name": "Ticket classifier",
+      "description": "Classifies a support ticket into one of a fixed set of labels, with a short justification.",
+      "category": "classification",
+      "tags": ["support", "labels", "structured"],
+      "prompt": {
+        "title": "Ticket classifier — structured JSON",
+        "purpose": "Route support tickets to the right queue. One of a fixed set of labels, plus a short justification so reviewers can audit decisions.",
+        "body": "You are a careful support-ticket triage assistant.\n\nClassify the ticket below into exactly one of these labels:\n  billing · account · product · other\n\nRespond with a single JSON object on one line, no prose:\n  {\"label\": \"<one of the labels>\", \"justification\": \"<≤ 20 words>\"}\n\nTicket:\n{{ticket}}",
+        "messages": null,
+        "variables": [
+          { "name": "ticket", "type": "string", "required": true, "description": "The raw ticket body to classify." }
+        ],
+        "readme": "## Ticket classifier\n\n**Contract**\n- Input: raw ticket body under `{{ticket}}`.\n- Output: one-line JSON with `label` ∈ {billing, account, product, other} and a ≤ 20-word `justification`.\n- Ambiguity: return `\"other\"` and explain why.\n\n**Shipping policy**\nRegress every change against `billing`, `account`, and `other` examples before promoting.\n\n**Known edge cases**\n- Refund requests without an order number are `billing`.\n- Password resets are `account`.\n- Feature requests are `other`."
+      },
+      "suggestedTestCases": [
+        { "name": "billing — refund", "bindings": { "ticket": "I was charged twice for my subscription this month. Please refund one." }, "expectedKind": "regex", "expectedOutput": "\"label\"\\s*:\\s*\"billing\"" },
+        { "name": "account — password reset", "bindings": { "ticket": "I can't log in. Reset link never arrives." }, "expectedKind": "regex", "expectedOutput": "\"label\"\\s*:\\s*\"account\"" },
+        { "name": "other — feature request", "bindings": { "ticket": "Please add dark mode to the iOS app." }, "expectedKind": "regex", "expectedOutput": "\"label\"\\s*:\\s*\"other\"" }
+      ]
+    },
+    {
+      "format": "prompt-tree-template/1",
+      "id": "structured-extractor",
+      "name": "Structured extractor",
+      "description": "Extracts a typed record from free-form text. Returns JSON matching a fixed schema, or a single error field.",
+      "category": "extraction",
+      "tags": ["json", "schema", "parse"],
+      "prompt": {
+        "title": "Structured extractor — schema-constrained",
+        "purpose": "Turn free-form text into a typed record. Fail loudly with a single `error` field when the input doesn't match the schema.",
+        "body": "You are a structured data extractor.\n\nExtract the fields below from the input text. Output ONE JSON object on one line, no prose, no code fences.\n\nSchema (all fields required unless marked optional):\n  {\n    \"name\": string,\n    \"email\": string,\n    \"company\": string (optional, null if absent),\n    \"intent\": \"demo\" | \"support\" | \"sales\" | \"other\"\n  }\n\nIf the text is unparseable, output exactly: {\"error\": \"<one sentence reason>\"}\n\nInput text:\n{{text}}",
+        "messages": null,
+        "variables": [
+          { "name": "text", "type": "string", "required": true, "description": "Raw text to extract from." }
+        ],
+        "readme": "## Structured extractor\n\n**Contract**\n- Success: one JSON object matching the schema.\n- Failure: one JSON object with a single `error` field.\n- Never mix the two; never emit code fences.\n\n**Shipping policy**\nAdd a schema test to the eval bundle for every new field before promoting."
+      },
+      "suggestedTestCases": [
+        { "name": "happy path — demo request", "bindings": { "text": "Hi, I'm Sara Lee from Acme Corp (sara@acme.co). We'd love to see a demo." }, "expectedKind": "schema", "expectedOutput": "{\"type\":\"object\",\"required\":[\"name\",\"email\",\"intent\"]}" },
+          { "name": "failure — gibberish", "bindings": { "text": "qwertyuiop" }, "expectedKind": "regex", "expectedOutput": "\"error\"" }
+      ]
+    },
+    {
+      "format": "prompt-tree-template/1",
+      "id": "chain-of-thought",
+      "name": "Chain-of-thought solver",
+      "description": "Solves a math or logic problem with explicit step-by-step reasoning, then emits a final answer line.",
+      "category": "reasoning",
+      "tags": ["math", "cot", "reasoning"],
+      "prompt": {
+        "title": "Chain-of-thought solver",
+        "purpose": "Keep the reasoning transparent so reviewers can see why the answer is what it is.",
+        "body": "You are a careful mathematician.\n\nSolve the problem below. Show your reasoning in short numbered steps (maximum 6). Then emit a line of exactly the form:\n\n  ANSWER: <the final numeric or boolean answer, with no units and no punctuation>\n\nProblem:\n{{problem}}",
+        "messages": null,
+        "variables": [
+          { "name": "problem", "type": "string", "required": true, "description": "The problem statement to solve." }
+        ],
+        "readme": "## Chain-of-thought solver\n\nReasoning is visible on purpose. The `ANSWER:` line is the single machine-readable output — the rest is for humans auditing the chain."
+      },
+      "suggestedTestCases": [
+        { "name": "basic arithmetic", "bindings": { "problem": "A train leaves at 2pm going 60 mph. A second train leaves at 3pm going 80 mph on the same track. When does the second train catch up?" }, "expectedKind": "regex", "expectedOutput": "ANSWER:\\s*6\\s*pm" }
+      ]
+    },
+    {
+      "format": "prompt-tree-template/1",
+      "id": "code-reviewer",
+      "name": "Code-diff reviewer",
+      "description": "Reviews a code diff for likely bugs, style issues, and missing tests. Returns a structured review.",
+      "category": "code",
+      "tags": ["review", "diff", "quality"],
+      "prompt": {
+        "title": "Code-diff reviewer",
+        "purpose": "Catch the obvious class of bugs (off-by-one, resource leaks, missing null checks) on small diffs before a human review.",
+        "body": "You are a senior software engineer doing a code review.\n\nReview the diff below. Be strict but concise.\n\nReturn a JSON object with this exact shape:\n  {\n    \"summary\": \"<1–2 sentences>\",\n    \"findings\": [\n      { \"severity\": \"blocker\" | \"warn\" | \"nit\", \"line\": <number|null>, \"message\": \"<≤ 25 words>\" }\n    ],\n    \"questions\": [ \"<optional clarifying questions>\" ]\n  }\n\nLanguage: {{language}}\n\nDiff:\n```\n{{diff}}\n```",
+        "messages": null,
+        "variables": [
+          { "name": "language", "type": "string", "required": true, "description": "The language of the diff, e.g. 'TypeScript'." },
+          { "name": "diff", "type": "string", "required": true, "description": "Unified diff to review." }
+        ],
+        "readme": "## Code-diff reviewer\n\nScope is intentionally narrow: one file, one diff. Use **blocker** sparingly — anything blocker should prevent merge."
+      },
+      "suggestedTestCases": [
+        { "name": "obvious off-by-one", "bindings": { "language": "TypeScript", "diff": "--- a/sum.ts\n+++ b/sum.ts\n@@\n-for (let i = 0; i < arr.length; i++)\n+for (let i = 0; i <= arr.length; i++)" }, "expectedKind": "regex", "expectedOutput": "\"severity\"\\s*:\\s*\"blocker\"" }
+      ]
+    },
+    {
+      "format": "prompt-tree-template/1",
+      "id": "bullet-summarizer",
+      "name": "Bullet-point summarizer",
+      "description": "Condenses long prose into at most five bullet points, each ≤ 18 words. Preserves specific numbers.",
+      "category": "summarization",
+      "tags": ["summary", "bullets"],
+      "prompt": {
+        "title": "Bullet-point summarizer",
+        "purpose": "Short-form summaries for status reports and standups. Specific numbers are preserved verbatim.",
+        "body": "Summarize the document below in AT MOST five bullet points.\n\nRules:\n  - Each bullet ≤ 18 words.\n  - Preserve specific numbers, dates, and proper nouns verbatim.\n  - No preamble, no conclusion.\n\nDocument:\n{{document}}",
+        "messages": null,
+        "variables": [
+          { "name": "document", "type": "string", "required": true, "description": "Long-form text to summarize." }
+        ],
+        "readme": "## Bullet-point summarizer\n\nThe 18-word ceiling is load-bearing — it forces the model to drop filler. Tune it before shipping."
+      },
+      "suggestedTestCases": [
+        { "name": "short paragraph", "bindings": { "document": "In Q1 2026, revenue grew 14% year-over-year to $42.1M. Paid seats crossed 10,000 for the first time. Churn held at 2.3% monthly. We opened an office in Berlin." }, "expectedKind": "regex", "expectedOutput": "14%" }
+      ]
+    },
+    {
+      "format": "prompt-tree-template/1",
+      "id": "rubric-judge",
+      "name": "Rubric-based judge",
+      "description": "Scores a candidate answer against a rubric. Emits per-criterion scores + a short rationale.",
+      "category": "evaluation",
+      "tags": ["judge", "eval", "rubric"],
+      "prompt": {
+        "title": "Rubric-based judge",
+        "purpose": "Produce per-criterion scores that a human reviewer can audit. Never a single opaque score.",
+        "body": "You are an impartial judge.\n\nScore the candidate answer against the rubric. For each criterion, output a score in [0.0, 1.0] (one decimal) and a ≤ 20-word rationale.\n\nOutput exactly one JSON object:\n  {\n    \"scores\": { \"<criterion>\": <number>, ... },\n    \"rationales\": { \"<criterion>\": \"<text>\", ... },\n    \"overall\": <weighted mean>\n  }\n\nRubric (criterion: weight):\n{{rubric}}\n\nQuestion:\n{{question}}\n\nCandidate answer:\n{{answer}}",
+        "messages": null,
+        "variables": [
+          { "name": "rubric", "type": "string", "required": true, "description": "Rubric as 'criterion: weight' lines." },
+          { "name": "question", "type": "string", "required": true, "description": "The original question." },
+          { "name": "answer", "type": "string", "required": true, "description": "The candidate answer to score." }
+        ],
+        "readme": "## Rubric-based judge\n\nThe rationale field is mandatory. A judge that can't explain its scores is a black box."
+      },
+      "suggestedTestCases": [
+        { "name": "well-formed output", "bindings": { "rubric": "accuracy: 0.6\nclarity: 0.4", "question": "What is 2+2?", "answer": "Four." }, "expectedKind": "schema", "expectedOutput": "{\"type\":\"object\",\"required\":[\"scores\",\"rationales\",\"overall\"]}" }
+      ]
+    }
+  ]
+}

@@ -15,6 +15,7 @@ import { renderSettingsView,  bindSettingsView }  from "./views/settings.js";
 import { renderHelpView,      bindHelpView }      from "./views/help.js";
 import { renderSearchView,    bindSearchView }    from "./views/search.js";
 import { renderShareView,     bindShareView }     from "./views/share.js";
+import { renderTemplatesView, bindTemplatesView } from "./views/templates.js";
 import {
   renderDatasetsView, bindDatasetsView,
   renderModelsView,   bindModelsView,
@@ -107,6 +108,7 @@ function pickView(route) {
     case "settings":  return { markup: renderSettingsView(),          bind: bindSettingsView };
     case "help":      return { markup: renderHelpView(),              bind: bindHelpView };
     case "share":     return { markup: renderShareView(route),        bind: bindShareView };
+    case "templates": return { markup: renderTemplatesView(),         bind: bindTemplatesView };
     case "search":    return { markup: renderSearchView(route),       bind: bindSearchView };
     case "datasets":  return { markup: renderDatasetsView(route),     bind: bindDatasetsView };
     case "models":    return { markup: renderModelsView(route),       bind: bindModelsView };

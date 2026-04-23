@@ -228,6 +228,31 @@ Perfect for diff vs baseline regressions.
 
 ---
 
+## Template library
+
+The workspace topbar has a **Templates** link. It opens a curated
+grid of starter packs — six today, grouped by category
+(classification, extraction, reasoning, code, summarization,
+evaluation). Each card shows a description, tags, variable count,
+and a count of suggested test cases.
+
+Click a card to open the preview. You see the full prompt body, the
+variables, the suggested test cases (reference only — not imported
+automatically), and a project picker. **Import into workspace**
+creates a new prompt on that project's \`main\` branch, with the
+template's body, variables, and README already wired. You land on
+the new prompt ready to edit or run.
+
+Imports are atomic — one Ctrl/⌘+Z unwinds the whole import if you
+changed your mind.
+
+The library JSON ships as a static asset
+(\`webapp/data/templates.json\`) with a versioned envelope
+(\`prompt-tree-template-library/1\`). A malformed library fails the
+test suite before it reaches a release.
+
+---
+
 ## Share links
 
 The **Share** button on the prompt view packs a minimum slice of the

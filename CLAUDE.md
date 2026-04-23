@@ -116,6 +116,19 @@ prompts. Where competitors collect prompts, we **graduate** them.
   the slice as untrusted input (validated by `validateShare`, every
   string escaped at the boundary). The workspace state is never
   mutated — nothing to import yet; that lands with D3.
+- **D2: Prompt template library** — six curated starter packs
+  (`ticket-classifier`, `structured-extractor`, `chain-of-thought`,
+  `code-reviewer`, `bullet-summarizer`, `rubric-judge`) ship under
+  `webapp/data/templates.json`, served as a static bundle. New
+  `#/templates` route + workspace topbar entry open a grid grouped by
+  category; clicking a card opens a preview modal with body, variables,
+  suggested test cases, and an "Import into workspace" CTA that picks a
+  project and writes a new prompt atomically (single `mutate()` →
+  single Ctrl+Z). The format + validator are mirrored pure in
+  `src/domain/templates.ts` and `webapp/js/templates.js`, and every
+  bundled starter is validated at test time so a malformed JSON is a
+  red build. Modal CSS gained `max-height: 80vh; overflow-y: auto` so
+  long previews stay in reach on every viewport.
 
 ### 2.5 Reversibility — every destructive action can be undone
 
@@ -143,13 +156,14 @@ Contract: nothing in this app is a one-way door except the explicit
 
 | Surface | Count / result |
 |---|---|
-| **Vitest pure-domain cases** | 125 passing — `history.test.ts` (8), `approval.test.ts` (13), `stats.test.ts` (14), `share.test.ts` (16), plus 74 foundational cases (rendering, diff, lineage, promotion, versioning, branching, hashing, status, analyzers, evaluators). |
+| **Vitest pure-domain cases** | 144 passing — `history.test.ts` (8), `approval.test.ts` (13), `stats.test.ts` (14), `share.test.ts` (16), `templates.test.ts` (19), plus 74 foundational cases (rendering, diff, lineage, promotion, versioning, branching, hashing, status, analyzers, evaluators). |
 | **Headless walkthrough** | `scripts/ui-walkthrough.js` — 30 reference screenshots, 0 console errors enforced before every push. |
 | **Responsive audit** | `scripts/audit.js` — 23 routes × 3 viewports (1400 / 820 / 390). 0 horizontal scroll, 0 off-screen buttons, 0 tap-target violations (WCAG 2.5.8 AA). |
 | **Batch smoke** | `scripts/batch-smoke.js` — presses `B`, asserts run rows appear. |
 | **Approval smoke** | `scripts/approval-smoke.js` — approve → gate opens → revoke → gate closes. |
 | **Reversibility smoke** | `scripts/reversibility-smoke.js` — archive / delete / archive-branch → Ctrl+Z → state restored; also asserts the "Nothing to undo" guard. |
 | **Share smoke** | `scripts/share-smoke.js` — Share button → capture URL → open in fresh context → asserts same title + body + read-only badge; tampered payload surfaces a friendly error. |
+| **Templates smoke** | `scripts/templates-smoke.js` — `/templates` grid paints ≥ 3 cards → preview modal shows body + Import CTA → import creates a new prompt in the demo project with the template body preserved → Ctrl+Z unwinds the import atomically. |
 
 ### 2.7 Security status (browser-only runtime)
 
@@ -207,7 +221,7 @@ sub-bullets in place. Done items move to §2.
 | # | Item | Status |
 |---|---|---|
 | D1 | Public read-only share links (encode minimum prompt slice into URL hash) | **done** | pure `packShare` / `validateShare` + `ancestorChain` in `src/domain/share.ts` (mirrored in `webapp/js/share.js`); codec layer does base64url + gzip via `CompressionStream` with an `algo.payload` prefix (gz/raw) for forward-compat and a raw fallback when the browser lacks gzip. Share button in the action bar opens a modal with the URL, Includes / Target / Length breakdown, Copy-to-clipboard + open-preview action. New `#/share?d=…` route renders a dedicated read-only view (`webapp/js/views/share.js`) with breadcrumb → project/prompt lockup, "read-only share" badge, version chain (clickable to re-target in memory), body, metadata, README; the workspace state is never touched. 16 new vitest cases cover pack/round-trip/validate rejection paths; `scripts/share-smoke.js` verifies the full produce → consume → tamper-safety flow end-to-end. |
-| D2 | Prompt template library (curated starter packs, importable) | |
+| D2 | Prompt template library (curated starter packs, importable) | **done** | six curated starters (ticket-classifier, structured-extractor, chain-of-thought, code-reviewer, bullet-summarizer, rubric-judge) in `webapp/data/templates.json`; pure `validateTemplate` / `validateLibrary` / `instantiateTemplate` / `groupByCategory` in `src/domain/templates.ts` mirrored in `webapp/js/templates.js`; `services.createPromptFromTemplate` writes prompt + main branch + v1 + optional README in a *single* `mutate()` so Ctrl+Z unwinds the whole import atomically; new `#/templates` route + workspace topbar entry open a grid grouped by category → preview modal (body / variables / suggested tests / project picker / name override) → Import redirects to the new prompt. 19 new vitest cases (incl. bundle validation); `scripts/templates-smoke.js` covers library paint, preview, import, and undo. Also bumped `.modal { max-height: 80vh; overflow-y: auto }` so long previews stay in reach. |
 | D3 | Fork-to-clipboard: one click copies a prompt as a portable JSON | |
 
 ### 3.D Phase E — Brand & positioning
@@ -356,6 +370,7 @@ webapp/js/views/           offline UI
 webapp/js/adapters/models/ LLM adapters (anthropic / openai / gemini / mock)
 webapp/js/ui/components.js toast (incl. toast-with-undo), modal, palette
 webapp/data/seed.json      demo data — keep in sync with the schema
+webapp/data/templates.json curated starter-pack library (D2)
 webapp/css/app.css         design tokens + every view's layout
 webapp/assets/*.svg        brand marks (mark, mark-animated, wordmark, favicon)
 scripts/ui-walkthrough.js  30-screen headless capture, 0 console errors

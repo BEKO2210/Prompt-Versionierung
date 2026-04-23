@@ -527,6 +527,7 @@ input[type="checkbox"], input[type="radio"] { -webkit-appearance: auto; appearan
 .modal {
   background: var(--bg-elev); border-radius: var(--radius-xl); border: 1px solid var(--border);
   width: min(560px, 92vw); padding: 22px; box-shadow: var(--shadow-pop);
+  max-height: 80vh; overflow-y: auto;
 }
 .modal h2 { margin: 0 0 4px; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
 .modal .modal-sub { color: var(--fg-muted); font-size: 12.5px; margin-bottom: 14px; }
