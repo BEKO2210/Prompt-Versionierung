@@ -80,7 +80,26 @@ const subscribers = new Set();
 let saveTimer = null;
 let savePending = false;
 
+// ---------------------------------------------------------------------------
+// Undo stack — ring buffer of pre-mutation snapshots.
+// Mirrored from src/domain/history.ts (tested there in vitest). Kept inline
+// as a class to avoid dragging a TS-typed import into the browser path.
+// ---------------------------------------------------------------------------
+const UNDO_LIMIT = 50;
+class HistoryStack {
+  constructor(limit = 50) { this.buf = []; this.limit = limit; }
+  push(s) { this.buf.push(s); if (this.buf.length > this.limit) this.buf.shift(); }
+  pop()   { return this.buf.pop() ?? null; }
+  peek()  { return this.buf.length ? this.buf[this.buf.length - 1] : null; }
+  canUndo(){ return this.buf.length > 0; }
+  get size() { return this.buf.length; }
+  clear() { this.buf.length = 0; }
+}
+const history = new HistoryStack(UNDO_LIMIT);
+
 export function getState() { return state; }
+export function canUndo()  { return history.canUndo(); }
+export function undoSize() { return history.size; }
 
 export function subscribe(fn) {
   subscribers.add(fn);
@@ -96,22 +115,43 @@ function notify() {
 export async function loadState({ defaults }) {
   const fromDisk = await idbGet();
   state = fromDisk ?? defaults;
+  history.clear();
   return state;
 }
 
 // Mutate the state via a function. The function is called with a structured
 // clone, so callers cannot accidentally mutate the live object. Returns the
-// mutated state. Saves and broadcasts are coalesced.
+// mutated state. Saves and broadcasts are coalesced. The previous state is
+// pushed onto the undo stack so the caller can revert via undo().
 export function mutate(fn) {
+  const snapshot = state ? structuredClone(state) : null;
   const draft = structuredClone(state);
   const result = fn(draft);
   state = (result && typeof result === "object") ? result : draft;
   state.meta = state.meta || {};
   state.meta.updatedAt = Date.now();
   state.meta.revision = (state.meta.revision || 0) + 1;
+  if (snapshot) history.push(snapshot);
   notify();
   scheduleSave();
   return state;
+}
+
+// Pop the most recent pre-mutation snapshot back into state.
+// Returns `true` on a successful undo, `false` when the stack is empty.
+// The restored state keeps its own meta.revision advancing so the UI still
+// re-renders (otherwise subscribers that key off the revision would skip).
+export function undo() {
+  const prev = history.pop();
+  if (!prev) return false;
+  const rev = (state?.meta?.revision ?? 0) + 1;
+  state = prev;
+  state.meta = state.meta || {};
+  state.meta.updatedAt = Date.now();
+  state.meta.revision = rev;
+  notify();
+  scheduleSave();
+  return true;
 }
 
 // Immediate save (no debounce). Used by import.
@@ -152,12 +192,15 @@ export function startMultiTabSync() {
   });
 }
 
-// Hard reset — useful for "Reset demo".
+// Hard reset — useful for "Reset demo" and Import.
+// Clears the undo stack so the user can't accidentally "undo" themselves
+// back into a half-mixed pre-import state.
 export async function resetTo(value) {
   state = value;
   state.meta = state.meta || {};
   state.meta.updatedAt = Date.now();
   state.meta.revision = (state.meta.revision || 0) + 1;
+  history.clear();
   await commit();
   notify();
 }

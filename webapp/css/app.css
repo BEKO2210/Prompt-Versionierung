@@ -504,6 +504,17 @@ input[type="checkbox"], input[type="radio"] { -webkit-appearance: auto; appearan
   z-index: 200;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.with-action { display: inline-flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; }
+.toast.with-action .toast-msg { color: white; }
+.toast.with-action .toast-action {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: transparent; border: 1px solid rgba(255,255,255,0.25);
+  color: white; font-size: 12px; font-weight: 500;
+  padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  transition: background .12s ease, border-color .12s ease;
+}
+.toast.with-action .toast-action:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.5); }
+.toast.with-action .toast-action:focus-visible { outline: 2px solid var(--accent-bg); outline-offset: 2px; }
 
 /* ---------------------------------------------------------------------------
    Modal & command palette

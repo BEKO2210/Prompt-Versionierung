@@ -27,15 +27,34 @@ export function escapeAttr(s) { return escapeHtml(s); }
 
 // ---------------------------------------------------------------------------
 // Toast
+// Two forms:
+//   toast("message")                              — plain status flash
+//   toast("message", { actionLabel, onAction })   — flash with an inline
+//                                                   action button (e.g. Undo)
+// The action toast stays visible for 5s so the user has time to decide.
 // ---------------------------------------------------------------------------
 let toastTimer;
-export function toast(msg) {
+export function toast(msg, opts) {
   const el = document.getElementById("toast");
   if (!el) return;
-  el.textContent = msg;
-  el.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove("show"), 1800);
+  if (opts?.actionLabel && typeof opts.onAction === "function") {
+    el.innerHTML = `
+      <span class="toast-msg">${escapeHtml(msg)}</span>
+      <button type="button" class="toast-action">${escapeHtml(opts.actionLabel)}</button>`;
+    el.classList.add("show", "with-action");
+    const btn = el.querySelector(".toast-action");
+    btn.addEventListener("click", () => {
+      try { opts.onAction(); } catch (e) { console.error(e); }
+      el.classList.remove("show", "with-action");
+    }, { once: true });
+    toastTimer = setTimeout(() => el.classList.remove("show", "with-action"), 5000);
+  } else {
+    el.textContent = msg;
+    el.classList.add("show");
+    el.classList.remove("with-action");
+    toastTimer = setTimeout(() => el.classList.remove("show"), 1800);
+  }
 }
 
 // ---------------------------------------------------------------------------

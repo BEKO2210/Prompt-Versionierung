@@ -1,7 +1,10 @@
 // services.js — operations on the in-memory state. Every mutation goes
 // through here. Versions are append-only (only `status` may transition).
 
-import { mutate, getState } from "./store.js";
+import { mutate, getState, undo, canUndo } from "./store.js";
+// Re-export so UI code depends only on services.js (layering rule: views
+// never import store.js directly for mutation concerns).
+export { undo, canUndo };
 import {
   newId, slugify, contentHash, validateBranchName, suggestRefineBranchName,
   canTransition, analyze, propose, render, mockModelCall, evaluate,
@@ -52,9 +55,26 @@ export function createProject({ name, description }) {
 export function archiveProject(projectId) {
   mutate((s) => { findProject(s, projectId).archivedAt = Date.now(); });
 }
+export function unarchiveProject(projectId) {
+  mutate((s) => { delete findProject(s, projectId).archivedAt; });
+}
 
+// Soft-delete — marks the project as deleted but keeps the data so
+// restoreProject() can bring it back. Hard deletion requires an explicit
+// purgeProject() call with a separate confirmation.
 export function deleteProject(projectId) {
-  mutate((s) => { s.projects = s.projects.filter((p) => p.id !== projectId); });
+  mutate((s) => { findProject(s, projectId).deletedAt = Date.now(); });
+}
+export function restoreProject(projectId) {
+  mutate((s) => { delete findProject(s, projectId).deletedAt; });
+}
+export function purgeProject(projectId) {
+  mutate((s) => {
+    const p = s.projects.find((x) => x.id === projectId);
+    if (!p) throw new Error("Project not found: " + projectId);
+    if (!p.deletedAt) throw new Error("Project must be soft-deleted before purge");
+    s.projects = s.projects.filter((x) => x.id !== projectId);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -101,9 +121,31 @@ export async function createPrompt({ projectId, name, purpose, description, init
 export function archivePrompt(promptId) {
   mutate((s) => { findPrompt(s, promptId).prompt.archivedAt = Date.now(); });
 }
+export function unarchivePrompt(promptId) {
+  mutate((s) => { delete findPrompt(s, promptId).prompt.archivedAt; });
+}
+
+// Soft-delete mirrors project behaviour: keeps the row, sets `deletedAt`,
+// and hides the prompt from the default project view. restorePrompt brings
+// it back; purgePrompt drops it permanently (hard delete).
 export function deletePrompt(promptId) {
+  mutate((s) => { findPrompt(s, promptId).prompt.deletedAt = Date.now(); });
+}
+export function restorePrompt(promptId) {
+  mutate((s) => { delete findPrompt(s, promptId).prompt.deletedAt; });
+}
+export function purgePrompt(promptId) {
   mutate((s) => {
-    for (const p of s.projects) p.prompts = p.prompts.filter((pr) => pr.id !== promptId);
+    let found = false;
+    for (const p of s.projects) {
+      const pr = p.prompts.find((x) => x.id === promptId);
+      if (pr) {
+        if (!pr.deletedAt) throw new Error("Prompt must be soft-deleted before purge");
+        p.prompts = p.prompts.filter((x) => x.id !== promptId);
+        found = true;
+      }
+    }
+    if (!found) throw new Error("Prompt not found: " + promptId);
   });
 }
 
@@ -139,6 +181,23 @@ export function archiveBranch({ promptId, branchId, rationale }) {
     prompt.decisions = prompt.decisions || [];
     prompt.decisions.push({
       id: newId("dec"), kind: "archive", versionId: null, branchId, rationale: rationale || "",
+      decidedAt: Date.now(), decidedBy: s.meta?.author || null,
+    });
+  });
+}
+
+// Bring an archived branch back to "active". Writes its own decision row so
+// the audit trail shows both sides of the governance action.
+export function unarchiveBranch({ promptId, branchId, rationale }) {
+  mutate((s) => {
+    const { prompt } = findPrompt(s, promptId);
+    const b = prompt.branches.find((x) => x.id === branchId);
+    if (!b) throw new Error("Branch not found");
+    if (b.status !== "archived") throw new Error("Branch is not archived");
+    b.status = "active";
+    prompt.decisions = prompt.decisions || [];
+    prompt.decisions.push({
+      id: newId("dec"), kind: "unarchive", versionId: null, branchId, rationale: rationale || "",
       decidedAt: Date.now(), decidedBy: s.meta?.author || null,
     });
   });
@@ -820,6 +879,25 @@ export async function mergeProposal({ promptId, proposalId, mode = "squashed", r
     pp.createdVersionId = canon?.headVersionId || null;
     pushActivity(prompt, "proposal_merged",
       { proposalId, mode, createdVersionId: pp.createdVersionId, rationale }, actor);
+  });
+}
+
+// Re-open a closed (declined) proposal. Not allowed for merged proposals,
+// since merging promoted the source version — re-opening would create a
+// phantom "open" proposal pointing at an already-shipped version. Users
+// who want to re-propose after a merge should open a new proposal.
+export function reopenProposal({ promptId, proposalId }) {
+  mutate((s) => {
+    const { prompt } = findPrompt(s, promptId);
+    const prop = (prompt.proposals || []).find((p) => p.id === proposalId);
+    if (!prop) throw new Error("Proposal not found");
+    if (prop.status === "open")   throw new Error("Proposal is already open");
+    if (prop.status === "merged") throw new Error("Merged proposals cannot be reopened; open a new proposal instead");
+    const actor = s.meta?.currentActor || null;
+    prop.status = "open";
+    prop.closedAt = null;
+    prop.closedBy = null;
+    pushActivity(prompt, "proposal_reopened", { proposalId }, actor);
   });
 }
 

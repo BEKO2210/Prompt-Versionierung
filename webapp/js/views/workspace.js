@@ -5,7 +5,10 @@ import { navigate } from "../router.js";
 
 export function renderWorkspace() {
   const s = getState();
-  const projects = (s.projects || []).filter((p) => !p.archivedAt);
+  // Hide both archived and soft-deleted projects from the main grid.
+  // Archive = "I'm done with this for now"; delete = "purge-candidate".
+  // Both can still be restored from Settings (or via Ctrl/Cmd+Z right after).
+  const projects = (s.projects || []).filter((p) => !p.archivedAt && !p.deletedAt);
 
   return html`
     <div class="topbar">
