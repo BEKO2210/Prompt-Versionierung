@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="Ticket classifier — Prompt Tree social card">
+<title>Ticket classifier — Prompt Tree</title>
+<defs>
+  <linearGradient id="sc-bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#ffffff"/>
+    <stop offset="1" stop-color="#f0f9ff"/>
+  </linearGradient>
+  <linearGradient id="sc-ink" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+    <stop offset="0"    stop-color="#155e75"/>
+    <stop offset="0.55" stop-color="#0891b2"/>
+    <stop offset="1"    stop-color="#22d3ee"/>
+  </linearGradient>
+  <linearGradient id="sc-title" x1="0" y1="0" x2="1200" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0"    stop-color="#155e75"/>
+    <stop offset="1"    stop-color="#0891b2"/>
+  </linearGradient>
+</defs>
+
+<rect width="1200" height="630" fill="url(#sc-bg)"/>
+<g transform="translate(960 -80) scale(12.5)" opacity="0.08">
+    <g transform="rotate(-8 12 12)" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 6 20 C 6 16, 12 15.2, 12 11.2 C 12 8.0, 15.8 6.8, 17 5.2" stroke="url(#sc-ink)"/>
+    <path d="M 12 11.2 C 15.4 12.4, 18.2 13.6, 19.6 15.2" stroke="#67e8f9" stroke-width="1.5" stroke-dasharray="2 2.2" opacity="0.82"/>
+    <circle cx="6" cy="20" r="1.7" stroke="url(#sc-ink)" fill="#ffffff"/>
+    <circle cx="12" cy="11.2" r="1.35" fill="url(#sc-ink)"/>
+    <circle cx="17" cy="5.2" r="2.1" fill="url(#sc-ink)"/>
+    <circle cx="17" cy="5.2" r="3.2" stroke="url(#sc-ink)" stroke-width="1.1" opacity="0.35"/>
+    <circle cx="19.6" cy="15.2" r="1.3" stroke="#67e8f9" stroke-width="1.3" fill="#ffffff"/>
+  </g>
+  </g>
+
+<g transform="translate(72 56)">
+  <g transform="scale(2)"><g transform="rotate(-8 12 12)" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 6 20 C 6 16, 12 15.2, 12 11.2 C 12 8.0, 15.8 6.8, 17 5.2" stroke="url(#sc-ink)"/>
+    <path d="M 12 11.2 C 15.4 12.4, 18.2 13.6, 19.6 15.2" stroke="#67e8f9" stroke-width="1.5" stroke-dasharray="2 2.2" opacity="0.82"/>
+    <circle cx="6" cy="20" r="1.7" stroke="url(#sc-ink)" fill="#ffffff"/>
+    <circle cx="12" cy="11.2" r="1.35" fill="url(#sc-ink)"/>
+    <circle cx="17" cy="5.2" r="2.1" fill="url(#sc-ink)"/>
+    <circle cx="17" cy="5.2" r="3.2" stroke="url(#sc-ink)" stroke-width="1.1" opacity="0.35"/>
+    <circle cx="19.6" cy="15.2" r="1.3" stroke="#67e8f9" stroke-width="1.3" fill="#ffffff"/>
+  </g></g>
+  <text x="64" y="34" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="26" font-weight="700" fill="#0f172a" letter-spacing="-0.01em">Prompt Tree</text>
+  <text x="992" y="34" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="16" font-weight="500" fill="#475569" text-anchor="end" letter-spacing="0.06em">BRANCH. PROVE. SHIP.</text>
+</g>
+
+<g transform="translate(72 202)">
+  <text font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="20" font-weight="600" fill="#0e7490" letter-spacing="0.05em">DEMO</text>
+  <text x="63" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="20" font-weight="500" fill="#475569"> · v2 · APPROVED · b5dfa91</text>
+</g>
+
+<g transform="translate(72 277)">
+  <text font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="88" font-weight="800" fill="url(#sc-title)" letter-spacing="-0.02em">Ticket classifier</text>
+</g>
+
+<g transform="translate(72 391)">
+  <text font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="28" font-weight="500" fill="#0f172a" letter-spacing="-0.01em">With output format</text>
+</g>
+
+
+<g transform="translate(72 460)">
+  <text font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="20" font-weight="400" fill="#475569" font-style="italic">Add role framing and output-format rule</text>
+</g>
+
+<g transform="translate(72 534)">
+  <g transform="translate(0 0)">
+    <text y="20"  font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#475569" letter-spacing="0.1em">BRANCHES</text>
+    <text y="60" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="40" font-weight="700" fill="#0f172a" letter-spacing="-0.02em">4</text>
+  </g>
+  <g transform="translate(260 0)">
+    <text y="20"  font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#475569" letter-spacing="0.1em">VERSIONS</text>
+    <text y="60" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="40" font-weight="700" fill="#0f172a" letter-spacing="-0.02em">6</text>
+  </g>
+  <g transform="translate(520 0)">
+    <text y="20"  font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14" font-weight="600" fill="#475569" letter-spacing="0.1em">RUNS</text>
+    <text y="60" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="40" font-weight="700" fill="#0f172a" letter-spacing="-0.02em">0</text>
+  </g>
+  <text x="1056" y="28" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="16" font-weight="500" fill="#475569" text-anchor="end" letter-spacing="0.08em">PROMPTTREE.COM</text>
+</g>
+</svg>

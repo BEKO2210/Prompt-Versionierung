@@ -143,6 +143,19 @@ prompts. Where competitors collect prompts, we **graduate** them.
 
 ### 2.5 Phase E — Brand & positioning *(in progress)*
 
+- **E3: Social card SVG generator per prompt** — a new *Social card*
+  button on the prompt action bar packs project / prompt / version
+  metadata into a 1200 × 630 OpenGraph-aspect SVG card with the brand
+  lockup, project eyebrow, gradient title, change-summary line, stats
+  strip (branches / versions / runs) and a watermarked mark. Pure
+  renderer in `src/domain/socialCard.ts` mirrored into
+  `webapp/js/socialCard.js`; the webapp layer adds live data-URL
+  preview and in-page SVG→PNG rasterisation via `<canvas>`. Modal ships
+  with a live dark/light theme toggle and three export actions — Copy
+  SVG, Download .svg, Download .png. Every user-controlled string
+  flows through `escapeText` / `escapeAttr`; 13 new vitest cases lock
+  the escaping contract and the layout math; `scripts/social-card-smoke.js`
+  covers the modal, the theme swap, and the download event end-to-end.
 - **E2: Hero motion** — the landing page now opens with a narrative
   assembly instead of a silent static mark. New `webapp/assets/mark-hero.svg`
   runs a slower, more deliberate SMIL timeline (seed 0 s → fork 1.3 s →
@@ -198,7 +211,7 @@ Contract: nothing in this app is a one-way door except the explicit
 
 | Surface | Count / result |
 |---|---|
-| **Vitest pure-domain cases** | 151 passing — `history.test.ts` (8), `approval.test.ts` (13), `stats.test.ts` (14), `share.test.ts` (16), `templates.test.ts` (26, incl. `packFork` + `source` validation), plus 74 foundational cases (rendering, diff, lineage, promotion, versioning, branching, hashing, status, analyzers, evaluators). |
+| **Vitest pure-domain cases** | 164 passing — `history.test.ts` (8), `approval.test.ts` (13), `stats.test.ts` (14), `share.test.ts` (16), `templates.test.ts` (26, incl. `packFork` + `source` validation), `socialCard.test.ts` (13), plus 74 foundational cases (rendering, diff, lineage, promotion, versioning, branching, hashing, status, analyzers, evaluators). |
 | **Headless walkthrough** | `scripts/ui-walkthrough.js` — 30 reference screenshots, 0 console errors enforced before every push. |
 | **Responsive audit** | `scripts/audit.js` — 23 routes × 3 viewports (1400 / 820 / 390). 0 horizontal scroll, 0 off-screen buttons, 0 tap-target violations (WCAG 2.5.8 AA). |
 | **Batch smoke** | `scripts/batch-smoke.js` — presses `B`, asserts run rows appear. |
@@ -207,6 +220,7 @@ Contract: nothing in this app is a one-way door except the explicit
 | **Share smoke** | `scripts/share-smoke.js` — Share button → capture URL → open in fresh context → asserts same title + body + read-only badge; tampered payload surfaces a friendly error. |
 | **Templates smoke** | `scripts/templates-smoke.js` — `/templates` grid paints ≥ 3 cards → preview modal shows body + Import CTA → import creates a new prompt in the demo project with the template body preserved → Ctrl+Z unwinds the import atomically. |
 | **Fork smoke** | `scripts/fork-smoke.js` — Copy-JSON modal emits a valid `prompt-tree-template/1` with a `source` block → paste into `/templates` → preview shows the same body → import creates a new prompt with byte-identical body → Ctrl+Z unwinds. Also asserts malformed paste surfaces a friendly inline error. |
+| **Social-card smoke** | `scripts/social-card-smoke.js` — modal opens with a 1200 × 630 inline SVG preview carrying the project / prompt / version metadata; theme toggle dark ↔ light actually repaints the preview; Download .svg fires a real download event with a `prompttree-social-*.svg` filename. |
 | **Landing smoke** | `scripts/landing-smoke.js` — with the seed stubbed to an empty workspace, `/` paints the hero / 3 pillars / 2 feature columns; hero uses `mark-hero.svg` and splits the tagline into three `.reveal-word` spans; under `prefers-reduced-motion: reduce` the src swaps to static `mark.svg` and reveal opacity is 1 instantly; *Explore with the demo* loads the real seed and repaints the grid; *Create your first project* opens the New-project modal; landing topbar never carries the populated action row. |
 
 ### 2.8 Security status (browser-only runtime)
@@ -274,7 +288,7 @@ sub-bullets in place. Done items move to §2.
 |---|---|---|
 | E1 | Marketing landing page on `/` (when no project exists) | **done** | `renderLanding()` in `webapp/js/views/workspace.js` short-circuits when `projects.length === 0` (hiding archived + soft-deleted); hero + 3 pillars + 2-column feature block + footer; primary CTAs wire to New-project modal and a `load-demo` action that hits the same `store.resetTo` path as the topbar "Reset demo" but without the confirm (there's nothing to lose). New CSS block (`.landing-*`) uses the existing design tokens; 2 responsive breakpoints collapse the grids to single-column on ≤ 820 px and shrink the mark on ≤ 380 px. Residual `#a855f7` in `webapp/assets/mark.svg` swapped for `#67e8f9` so every brand surface stays ocean-palette (§1.1). `scripts/landing-smoke.js` uses a ctx-level route stub to starve the boot of seed data, then verifies paint, CTAs, and the topbar variant. |
 | E2 | Hero motion: animated mark assembly (seed → fork → head) | **done** | new `webapp/assets/mark-hero.svg` with an extended narrative SMIL timeline (seed 0 s → fork 1.3 s → refinement tip 2.2 s → head 2.6 s → crown 2.9 s → spark-loop at 4 s); landing tagline split into `.reveal-word-*` spans with CSS `animation-delay`s pinned to those beats (1.40 / 2.30 / 3.00 s), then title / pitch / CTAs / sub-CTA cascade at 3.50 / 3.85 / 4.15 / 4.40 s. `prefers-reduced-motion` handled on two layers: `<img>` src swaps to static `mark.svg` in `bindWorkspace`, and `html[data-reduced-motion="1"]` + the `@media` query collapse every CSS reveal to an instant paint. Landing smoke picks up both the hero mark assertion and the reduced-motion swap. |
-| E3 | Social card SVG generator per prompt | |
+| E3 | Social card SVG generator per prompt | **done** | pure `renderSocialCard(input, opts)` in `src/domain/socialCard.ts` produces a deterministic 1200 × 630 OG-aspect SVG with the brand lockup, project eyebrow, gradient title (auto-sized for length), optional change-summary line, stats strip, `PROMPTTREE.COM` watermark lockup, and a decorative top-right sigil. `webapp/js/socialCard.js` mirrors it plus `svgToDataUrl` / `svgToPng` (in-page `<canvas>` rasterisation) / `downloadBlob` / `fileNameForCard`. Social-card modal on the prompt action bar shows a live preview via data-URL, toggles dark/light, and exposes Copy SVG / Download .svg / Download .png. 13 new vitest cases lock the escaping contract, size math, theme palette, and round-trip byte-honesty; `scripts/social-card-smoke.js` covers the modal flow + theme repaint + real download event. Also tightened `svgToDataUrl` to byte-honest `encodeURIComponent` so the Download artefact equals the preview exactly. |
 
 ### 3.E Phase F — Backend: GitHub for Prompts
 

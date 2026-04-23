@@ -18,6 +18,10 @@ import {
 } from "../runFormat.js";
 import { packShare, buildShareUrl } from "../share.js";
 import { packFork, fileNameForFork } from "../templates.js";
+import {
+  renderSocialCard, cardInputFromWorkspace,
+  svgToDataUrl, svgToPng, downloadBlob, fileNameForCard,
+} from "../socialCard.js";
 
 // --- entry points ---
 export function renderPromptView(route) {
@@ -280,6 +284,7 @@ function renderMainHead({ project, prompt, version }) {
         <button class="btn" data-act="compare">${icon("compare", { size: 13 })} Compare</button>
         <button class="btn" data-act="share">${icon("upload", { size: 13 })} Share</button>
         <button class="btn" data-act="copy-json">${icon("download", { size: 13 })} Copy JSON</button>
+        <button class="btn" data-act="social-card">${icon("upload", { size: 13 })} Social card</button>
         <button class="btn accent" data-act="promote">${icon("crown", { size: 13 })} Promote</button>
       </div>
     </div>
@@ -941,6 +946,7 @@ export function bindPromptView(root, route) {
     navigate(`/p/${ctx.project.slug}/p/${ctx.prompt.slug}/compare`, { b: ctx.version.id }));
   root.querySelector('[data-act="share"]')?.addEventListener("click", () => openShareModal(ctx));
   root.querySelector('.main-head [data-act="copy-json"]')?.addEventListener("click", () => openCopyJsonModal(ctx));
+  root.querySelector('[data-act="social-card"]')?.addEventListener("click", () => openSocialCardModal(ctx));
   root.querySelector('[data-act="promote"]')?.addEventListener("click", () => openPromoteModal(ctx));
 
   // --- notes tab quick add ---
@@ -1541,6 +1547,85 @@ function openCopyJsonModal({ project, prompt, version }) {
       if (!payload) return;
       downloadJSON(fileNameForFork(payload), payload);
       toast("Downloaded fork JSON");
+    });
+  }, 50);
+}
+
+// --- Social card (E3): 1200×630 OG-aspect SVG card for the current
+// version. Preview renders inline via a data-URL; Download SVG / PNG
+// and Copy SVG let the user paste straight into GitHub, Twitter, or a
+// company readme. Theme toggle (dark/light) is live in the modal. ---
+function openSocialCardModal({ project, prompt, version }) {
+  let theme = "dark";
+  const input = cardInputFromWorkspace({ project, prompt, version });
+
+  const build = () => renderSocialCard(input, { theme });
+
+  modal({
+    title: "Social card",
+    sub: "1200 × 630 OpenGraph-aspect. Drop it into a GitHub README, a tweet, or any share preview.",
+    body: `
+      <div class="row">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px">
+          <label style="margin:0">Preview</label>
+          <div style="display:inline-flex;gap:6px" role="group" aria-label="theme">
+            <button type="button" class="btn sm" data-theme="dark">Dark</button>
+            <button type="button" class="btn sm" data-theme="light">Light</button>
+          </div>
+        </div>
+        <div class="code-frame" style="padding:8px;background:var(--bg-sunk)">
+          <img data-social-preview alt="Social card preview"
+               src="${escapeAttr(svgToDataUrl(build()))}"
+               style="display:block;width:100%;height:auto;border-radius:6px" />
+        </div>
+      </div>
+      <div class="kv" style="margin-top:8px">
+        <div class="row"><div class="k">Size</div><div class="v">1200 × 630 px</div></div>
+        <div class="row"><div class="k">Source</div><div class="v">${escapeHtml(project.name)} / ${escapeHtml(prompt.name)} · v${version.number}</div></div>
+      </div>
+      <div class="actions" style="margin-top:8px;justify-content:flex-end;display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn" data-act="copy-svg">${icon("download", { size: 13 })} Copy SVG</button>
+        <button type="button" class="btn" data-act="download-svg">${icon("download", { size: 13 })} Download .svg</button>
+        <button type="button" class="btn" data-act="download-png">${icon("download", { size: 13 })} Download .png</button>
+      </div>
+      <div class="helper">The card includes the project / prompt / version metadata and the brand lockup. No body content, no runs — it's a link preview, not a data export.</div>`,
+    primary: "Done", secondary: null,
+    onSubmit: async () => { /* Done closes the modal, no-op */ },
+  });
+
+  // Wire theme toggle + download actions after the modal paints.
+  setTimeout(() => {
+    const host = document.querySelector(".modal");
+    if (!host) return;
+    const img = host.querySelector("[data-social-preview]");
+    const repaint = () => { if (img) img.src = svgToDataUrl(build()); };
+    host.querySelectorAll("[data-theme]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        theme = btn.dataset.theme;
+        repaint();
+        host.querySelectorAll("[data-theme]").forEach((b) => b.classList.toggle("accent", b.dataset.theme === theme));
+      });
+    });
+    // Default active state on Dark.
+    host.querySelector('[data-theme="dark"]')?.classList.add("accent");
+
+    host.querySelector('[data-act="copy-svg"]')?.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(build());
+        toast("Copied SVG to clipboard");
+      } catch { toast("Copy failed"); }
+    });
+    host.querySelector('[data-act="download-svg"]')?.addEventListener("click", () => {
+      const blob = new Blob([build()], { type: "image/svg+xml" });
+      downloadBlob(blob, `${fileNameForCard(input)}-${theme}.svg`);
+      toast("Downloaded SVG");
+    });
+    host.querySelector('[data-act="download-png"]')?.addEventListener("click", async () => {
+      try {
+        const blob = await svgToPng(build(), { width: 1200, height: 630 });
+        downloadBlob(blob, `${fileNameForCard(input)}-${theme}.png`);
+        toast("Downloaded PNG");
+      } catch (err) { toast("PNG failed: " + (err.message || err)); }
     });
   }, 50);
 }

@@ -228,6 +228,30 @@ Perfect for diff vs baseline regressions.
 
 ---
 
+## Social cards
+
+The **Social card** button on the prompt action bar produces a
+1200 × 630 SVG — the standard OpenGraph aspect. It carries the brand
+lockup, the project / prompt / version metadata, the content hash,
+the change summary, and the branches / versions / runs counts. No
+prompt body, no runs, no keys — it is a **link preview**, not a
+data export.
+
+Three export paths live in the same modal:
+
+- **Copy SVG** — drops the raw markup on your clipboard; paste into
+  a GitHub README or a Markdown file.
+- **Download .svg** — keeps the file editable (vector, infinitely
+  scalable).
+- **Download .png** — rasterises via an in-page \`<canvas>\` for
+  platforms that reject SVG uploads (Twitter, LinkedIn at the time of
+  writing).
+
+Toggle between dark and light themes live; the preview repaints
+instantly.
+
+---
+
 ## Copy as portable JSON — forks
 
 The **Copy JSON** button on the prompt action bar produces a
