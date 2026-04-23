@@ -103,7 +103,89 @@ prompts. Where competitors collect prompts, we **graduate** them.
   merge button truly `[disabled]` until gate opens; self-approval by
   opener is blocked.
 
-### 2.4 Reversibility — every destructive action can be undone
+### 2.4 Phase D — Network effects (done)
+
+- **D1: Public read-only share links** — Share button on the prompt view
+  packs a `prompt-tree-share/1` slice (project + prompt metadata, target
+  version, full ancestor chain, the branches that chain touches) into
+  `#/share?d=<base64url>`. Payload is gzip-compressed via
+  `CompressionStream` when the browser supports it, raw otherwise, with
+  an `algo.payload` prefix for forward-compat. The read-only view
+  (`webapp/js/views/share.js`) rehydrates in a fresh context, renders
+  the body/metadata/README without any editing affordances, and treats
+  the slice as untrusted input (validated by `validateShare`, every
+  string escaped at the boundary). The workspace state is never
+  mutated — nothing to import yet; that lands with D3.
+- **D3: Fork-to-clipboard** — "Copy JSON" button on the prompt action
+  bar produces a portable `prompt-tree-template/1` payload with an
+  optional `source` provenance block (project/prompt slug, version id +
+  number, content hash, forkedAt timestamp). The same payload re-imports
+  cleanly: `/templates` gained an "Import JSON" topbar button that
+  accepts a pasted payload, validates it through the existing
+  `validateTemplate`, and routes straight into the library preview →
+  Import → new prompt. One envelope, one validator, one service call —
+  curated starters and forks walk the exact same consumer path. Forks
+  carry body / variables / README / purpose + provenance; never runs,
+  proposals, decisions, activity, or keys.
+- **D2: Prompt template library** — six curated starter packs
+  (`ticket-classifier`, `structured-extractor`, `chain-of-thought`,
+  `code-reviewer`, `bullet-summarizer`, `rubric-judge`) ship under
+  `webapp/data/templates.json`, served as a static bundle. New
+  `#/templates` route + workspace topbar entry open a grid grouped by
+  category; clicking a card opens a preview modal with body, variables,
+  suggested test cases, and an "Import into workspace" CTA that picks a
+  project and writes a new prompt atomically (single `mutate()` →
+  single Ctrl+Z). The format + validator are mirrored pure in
+  `src/domain/templates.ts` and `webapp/js/templates.js`, and every
+  bundled starter is validated at test time so a malformed JSON is a
+  red build. Modal CSS gained `max-height: 80vh; overflow-y: auto` so
+  long previews stay in reach on every viewport.
+
+### 2.5 Phase E — Brand & positioning *(in progress)*
+
+- **E3: Social card SVG generator per prompt** — a new *Social card*
+  button on the prompt action bar packs project / prompt / version
+  metadata into a 1200 × 630 OpenGraph-aspect SVG card with the brand
+  lockup, project eyebrow, gradient title, change-summary line, stats
+  strip (branches / versions / runs) and a watermarked mark. Pure
+  renderer in `src/domain/socialCard.ts` mirrored into
+  `webapp/js/socialCard.js`; the webapp layer adds live data-URL
+  preview and in-page SVG→PNG rasterisation via `<canvas>`. Modal ships
+  with a live dark/light theme toggle and three export actions — Copy
+  SVG, Download .svg, Download .png. Every user-controlled string
+  flows through `escapeText` / `escapeAttr`; 13 new vitest cases lock
+  the escaping contract and the layout math; `scripts/social-card-smoke.js`
+  covers the modal, the theme swap, and the download event end-to-end.
+- **E2: Hero motion** — the landing page now opens with a narrative
+  assembly instead of a silent static mark. New `webapp/assets/mark-hero.svg`
+  runs a slower, more deliberate SMIL timeline (seed 0 s → fork 1.3 s →
+  refinement tip 2.2 s → head 2.6 s → crown 2.9 s → spark-loop begins
+  4 s) tuned for hero display at 160 px. The tagline is broken into
+  three `.reveal-word-*` spans with CSS `animation-delay`s pinned to
+  the SMIL beats: "Branch." reveals when the fork lands, "Prove." when
+  the refinement tip lands, "Ship." when the crown expands. Title,
+  pitch, and CTAs then cascade in at 3.5 / 3.85 / 4.15 / 4.4 s so the
+  whole hero assembles as one coherent beat. `prefers-reduced-motion`
+  is respected on both layers: the `<img>` src swaps to the static
+  `mark.svg` (SMIL is outside the stylesheet's reach), and
+  `html[data-reduced-motion="1"]` collapses every `.reveal-*` animation
+  to `animation: none; opacity: 1`.
+- **E1: Marketing landing page on `/`** — when the workspace has zero
+  visible projects, `/` now renders a proper first-impression surface:
+  animated brand mark, `Prompt Tree` gradient wordmark, tagline
+  ("Branch. Prove. Ship."), 2-3-sentence pitch, two primary CTAs
+  (*Create your first project*, *Explore with the demo*), and a tertiary
+  "browse the template library" link. Three pillar cards (Branch /
+  Prove / Ship) sit under the hero; a two-column "Authoring / Evidence"
+  feature block anchors the capabilities; a tiny footer strip closes
+  with "Runs entirely in your browser. Git-style, not SaaS. Your data,
+  your device." Topbar is a minimal landing variant — no action row,
+  just brand + Templates + Help + theme. The grid view is untouched
+  when projects exist. Also fixed residual `#a855f7` purple in
+  `webapp/assets/mark.svg` (refinement dash + tip) so every brand
+  surface is ocean-palette only per §1.1.
+
+### 2.6 Reversibility — every destructive action can be undone
 
 Contract: nothing in this app is a one-way door except the explicit
 `purge*` call on an already-soft-deleted entity.
@@ -125,18 +207,23 @@ Contract: nothing in this app is a one-way door except the explicit
 - **Secrets bypass the undo stack by design** — API keys are
   environment, not state.
 
-### 2.5 Testing & verification
+### 2.7 Testing & verification
 
 | Surface | Count / result |
 |---|---|
-| **Vitest pure-domain cases** | 109 passing — `history.test.ts` (8), `approval.test.ts` (13), `stats.test.ts` (14), plus 74 foundational cases (rendering, diff, lineage, promotion, versioning, branching, hashing, status, analyzers, evaluators). |
+| **Vitest pure-domain cases** | 164 passing — `history.test.ts` (8), `approval.test.ts` (13), `stats.test.ts` (14), `share.test.ts` (16), `templates.test.ts` (26, incl. `packFork` + `source` validation), `socialCard.test.ts` (13), plus 74 foundational cases (rendering, diff, lineage, promotion, versioning, branching, hashing, status, analyzers, evaluators). |
 | **Headless walkthrough** | `scripts/ui-walkthrough.js` — 30 reference screenshots, 0 console errors enforced before every push. |
 | **Responsive audit** | `scripts/audit.js` — 23 routes × 3 viewports (1400 / 820 / 390). 0 horizontal scroll, 0 off-screen buttons, 0 tap-target violations (WCAG 2.5.8 AA). |
 | **Batch smoke** | `scripts/batch-smoke.js` — presses `B`, asserts run rows appear. |
 | **Approval smoke** | `scripts/approval-smoke.js` — approve → gate opens → revoke → gate closes. |
 | **Reversibility smoke** | `scripts/reversibility-smoke.js` — archive / delete / archive-branch → Ctrl+Z → state restored; also asserts the "Nothing to undo" guard. |
+| **Share smoke** | `scripts/share-smoke.js` — Share button → capture URL → open in fresh context → asserts same title + body + read-only badge; tampered payload surfaces a friendly error. |
+| **Templates smoke** | `scripts/templates-smoke.js` — `/templates` grid paints ≥ 3 cards → preview modal shows body + Import CTA → import creates a new prompt in the demo project with the template body preserved → Ctrl+Z unwinds the import atomically. |
+| **Fork smoke** | `scripts/fork-smoke.js` — Copy-JSON modal emits a valid `prompt-tree-template/1` with a `source` block → paste into `/templates` → preview shows the same body → import creates a new prompt with byte-identical body → Ctrl+Z unwinds. Also asserts malformed paste surfaces a friendly inline error. |
+| **Social-card smoke** | `scripts/social-card-smoke.js` — modal opens with a 1200 × 630 inline SVG preview carrying the project / prompt / version metadata; theme toggle dark ↔ light actually repaints the preview; Download .svg fires a real download event with a `prompttree-social-*.svg` filename. |
+| **Landing smoke** | `scripts/landing-smoke.js` — with the seed stubbed to an empty workspace, `/` paints the hero / 3 pillars / 2 feature columns; hero uses `mark-hero.svg` and splits the tagline into three `.reveal-word` spans; under `prefers-reduced-motion: reduce` the src swaps to static `mark.svg` and reveal opacity is 1 instantly; *Explore with the demo* loads the real seed and repaints the grid; *Create your first project* opens the New-project modal; landing topbar never carries the populated action row. |
 
-### 2.6 Security status (browser-only runtime)
+### 2.8 Security status (browser-only runtime)
 
 - `npm audit`: **0 vulnerabilities** (was 5 moderate in the dev
   chain; closed by vitest 2 → 4 on 2026-04-23).
@@ -189,19 +276,19 @@ sub-bullets in place. Done items move to §2.
 
 ### 3.C Phase D — Network effects
 
-| # | Item |
-|---|---|
-| D1 | Public read-only share links (encode minimum prompt slice into URL hash) |
-| D2 | Prompt template library (curated starter packs, importable) |
-| D3 | Fork-to-clipboard: one click copies a prompt as a portable JSON |
+| # | Item | Status |
+|---|---|---|
+| D1 | Public read-only share links (encode minimum prompt slice into URL hash) | **done** | pure `packShare` / `validateShare` + `ancestorChain` in `src/domain/share.ts` (mirrored in `webapp/js/share.js`); codec layer does base64url + gzip via `CompressionStream` with an `algo.payload` prefix (gz/raw) for forward-compat and a raw fallback when the browser lacks gzip. Share button in the action bar opens a modal with the URL, Includes / Target / Length breakdown, Copy-to-clipboard + open-preview action. New `#/share?d=…` route renders a dedicated read-only view (`webapp/js/views/share.js`) with breadcrumb → project/prompt lockup, "read-only share" badge, version chain (clickable to re-target in memory), body, metadata, README; the workspace state is never touched. 16 new vitest cases cover pack/round-trip/validate rejection paths; `scripts/share-smoke.js` verifies the full produce → consume → tamper-safety flow end-to-end. |
+| D2 | Prompt template library (curated starter packs, importable) | **done** | six curated starters (ticket-classifier, structured-extractor, chain-of-thought, code-reviewer, bullet-summarizer, rubric-judge) in `webapp/data/templates.json`; pure `validateTemplate` / `validateLibrary` / `instantiateTemplate` / `groupByCategory` in `src/domain/templates.ts` mirrored in `webapp/js/templates.js`; `services.createPromptFromTemplate` writes prompt + main branch + v1 + optional README in a *single* `mutate()` so Ctrl+Z unwinds the whole import atomically; new `#/templates` route + workspace topbar entry open a grid grouped by category → preview modal (body / variables / suggested tests / project picker / name override) → Import redirects to the new prompt. 19 new vitest cases (incl. bundle validation); `scripts/templates-smoke.js` covers library paint, preview, import, and undo. Also bumped `.modal { max-height: 80vh; overflow-y: auto }` so long previews stay in reach. |
+| D3 | Fork-to-clipboard: one click copies a prompt as a portable JSON | **done** | pure `packFork` in `src/domain/templates.ts` mirrored in `webapp/js/templates.js` produces a `prompt-tree-template/1` payload with an optional `source` provenance block (project/prompt slug, version id + number, content hash, forkedAt, forkedBy); `validateTemplate` gained a matching `validateSource` guard. "Copy JSON" button on the prompt action bar opens a modal with preview / copy-to-clipboard / download-as-file / provenance summary; pairs cleanly with D1 Share link in the same row. `/templates` gained an "Import JSON" topbar action that validates a pasted payload and routes into the normal library preview → Import → new prompt, so curated starters and forks walk the *exact same* consumer path. 7 new vitest cases (round-trip, leak guards, provenance validation, synthetic description fallback); `scripts/fork-smoke.js` covers Copy-JSON → paste → preview → import → Ctrl+Z, plus a malformed-paste guard. |
 
 ### 3.D Phase E — Brand & positioning
 
-| # | Item |
-|---|---|
-| E1 | Marketing landing page on `/` (when no project exists) |
-| E2 | Hero motion: animated mark assembly (seed → fork → head) |
-| E3 | Social card SVG generator per prompt |
+| # | Item | Status |
+|---|---|---|
+| E1 | Marketing landing page on `/` (when no project exists) | **done** | `renderLanding()` in `webapp/js/views/workspace.js` short-circuits when `projects.length === 0` (hiding archived + soft-deleted); hero + 3 pillars + 2-column feature block + footer; primary CTAs wire to New-project modal and a `load-demo` action that hits the same `store.resetTo` path as the topbar "Reset demo" but without the confirm (there's nothing to lose). New CSS block (`.landing-*`) uses the existing design tokens; 2 responsive breakpoints collapse the grids to single-column on ≤ 820 px and shrink the mark on ≤ 380 px. Residual `#a855f7` in `webapp/assets/mark.svg` swapped for `#67e8f9` so every brand surface stays ocean-palette (§1.1). `scripts/landing-smoke.js` uses a ctx-level route stub to starve the boot of seed data, then verifies paint, CTAs, and the topbar variant. |
+| E2 | Hero motion: animated mark assembly (seed → fork → head) | **done** | new `webapp/assets/mark-hero.svg` with an extended narrative SMIL timeline (seed 0 s → fork 1.3 s → refinement tip 2.2 s → head 2.6 s → crown 2.9 s → spark-loop at 4 s); landing tagline split into `.reveal-word-*` spans with CSS `animation-delay`s pinned to those beats (1.40 / 2.30 / 3.00 s), then title / pitch / CTAs / sub-CTA cascade at 3.50 / 3.85 / 4.15 / 4.40 s. `prefers-reduced-motion` handled on two layers: `<img>` src swaps to static `mark.svg` in `bindWorkspace`, and `html[data-reduced-motion="1"]` + the `@media` query collapse every CSS reveal to an instant paint. Landing smoke picks up both the hero mark assertion and the reduced-motion swap. |
+| E3 | Social card SVG generator per prompt | **done** | pure `renderSocialCard(input, opts)` in `src/domain/socialCard.ts` produces a deterministic 1200 × 630 OG-aspect SVG with the brand lockup, project eyebrow, gradient title (auto-sized for length), optional change-summary line, stats strip, `PROMPTTREE.COM` watermark lockup, and a decorative top-right sigil. `webapp/js/socialCard.js` mirrors it plus `svgToDataUrl` / `svgToPng` (in-page `<canvas>` rasterisation) / `downloadBlob` / `fileNameForCard`. Social-card modal on the prompt action bar shows a live preview via data-URL, toggles dark/light, and exposes Copy SVG / Download .svg / Download .png. 13 new vitest cases lock the escaping contract, size math, theme palette, and round-trip byte-honesty; `scripts/social-card-smoke.js` covers the modal flow + theme repaint + real download event. Also tightened `svgToDataUrl` to byte-honest `encodeURIComponent` so the Download artefact equals the preview exactly. |
 
 ### 3.E Phase F — Backend: GitHub for Prompts
 
@@ -341,6 +428,7 @@ webapp/js/views/           offline UI
 webapp/js/adapters/models/ LLM adapters (anthropic / openai / gemini / mock)
 webapp/js/ui/components.js toast (incl. toast-with-undo), modal, palette
 webapp/data/seed.json      demo data — keep in sync with the schema
+webapp/data/templates.json curated starter-pack library (D2)
 webapp/css/app.css         design tokens + every view's layout
 webapp/assets/*.svg        brand marks (mark, mark-animated, wordmark, favicon)
 scripts/ui-walkthrough.js  30-screen headless capture, 0 console errors

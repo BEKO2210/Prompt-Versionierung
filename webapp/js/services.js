@@ -984,6 +984,64 @@ export function setPromptReadme({ promptId, readme }) {
 }
 
 // ---------------------------------------------------------------------------
+// Templates — instantiate a curated starter pack as a new prompt under an
+// existing project. The pure transform lives in webapp/js/templates.js.
+// The prompt + its README are created inside a *single* mutate() call so
+// Ctrl+Z unwinds the whole import atomically.
+// ---------------------------------------------------------------------------
+export async function createPromptFromTemplate({ projectId, template, name }) {
+  const { instantiateTemplate } = await import("./templates.js");
+  const args = instantiateTemplate(template, { name });
+  const hash = await contentHash({
+    title: args.initialVersion.title,
+    body: args.initialVersion.body,
+    messages: args.initialVersion.messages || null,
+  });
+  let promptId;
+  mutate((s) => {
+    const project = findProject(s, projectId);
+    const slug = slugify(args.name);
+    if (project.prompts.some((p) => p.slug === slug)) {
+      throw new Error("Prompt slug exists in project: " + slug);
+    }
+    promptId = newId("prm");
+    const branchId = newId("br");
+    const versionId = newId("ver");
+    const now = Date.now();
+    project.prompts.push({
+      id: promptId, slug, name: args.name,
+      description: args.description || "",
+      purpose: args.purpose || "",
+      readme: args.readme || "",
+      canonicalBranchId: branchId,
+      createdAt: now, updatedAt: now,
+      branches: [
+        { id: branchId, name: "main", headVersionId: versionId, createdFromVersionId: null, status: "active", createdAt: now, color: pickColor(0) },
+      ],
+      versions: [{
+        id: versionId, promptId, parentVersionId: null, createdOnBranchId: branchId,
+        number: 1, contentHash: hash,
+        title: args.initialVersion.title.trim(),
+        body: args.initialVersion.body,
+        messages: args.initialVersion.messages || null,
+        status: "draft",
+        variables: args.initialVersion.variables || [],
+        changeSummary: `Imported from template: ${template.name}`,
+        rationale: "", expectedImprovement: "",
+        createdAt: now, createdBy: s.meta?.author || null,
+      }],
+      runs: [], evaluations: [], notes: [], suggestions: [], comparisons: [], lineageEdges: [],
+      activities: [{
+        id: newId("act"), kind: "prompt_imported_from_template",
+        metadata: { templateId: template.id, templateName: template.name },
+        at: now, actorId: s.meta?.currentActor || null,
+      }],
+    });
+  });
+  return promptId;
+}
+
+// ---------------------------------------------------------------------------
 // Members / actor switching
 // ---------------------------------------------------------------------------
 export function listProjectMembers(project) { return project.members || []; }

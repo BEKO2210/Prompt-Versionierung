@@ -16,6 +16,12 @@ import {
   serializeRun, serializeRunsForVersion,
   downloadJSON, copyJSON, fileNameForRun, fileNameForRunsBundle,
 } from "../runFormat.js";
+import { packShare, buildShareUrl } from "../share.js";
+import { packFork, fileNameForFork } from "../templates.js";
+import {
+  renderSocialCard, cardInputFromWorkspace,
+  svgToDataUrl, svgToPng, downloadBlob, fileNameForCard,
+} from "../socialCard.js";
 
 // --- entry points ---
 export function renderPromptView(route) {
@@ -276,6 +282,9 @@ function renderMainHead({ project, prompt, version }) {
         <button class="btn" data-act="batch">${icon("beaker", { size: 13 })} Batch</button>
         <button class="btn ghost-accent" data-act="refine">${icon("spark", { size: 13 })} Refine</button>
         <button class="btn" data-act="compare">${icon("compare", { size: 13 })} Compare</button>
+        <button class="btn" data-act="share">${icon("upload", { size: 13 })} Share</button>
+        <button class="btn" data-act="copy-json">${icon("download", { size: 13 })} Copy JSON</button>
+        <button class="btn" data-act="social-card">${icon("upload", { size: 13 })} Social card</button>
         <button class="btn accent" data-act="promote">${icon("crown", { size: 13 })} Promote</button>
       </div>
     </div>
@@ -935,6 +944,9 @@ export function bindPromptView(root, route) {
     navigate(`/p/${ctx.project.slug}/p/${ctx.prompt.slug}/refine/${ctx.version.id}`));
   root.querySelector('[data-act="compare"]')?.addEventListener("click", () =>
     navigate(`/p/${ctx.project.slug}/p/${ctx.prompt.slug}/compare`, { b: ctx.version.id }));
+  root.querySelector('[data-act="share"]')?.addEventListener("click", () => openShareModal(ctx));
+  root.querySelector('.main-head [data-act="copy-json"]')?.addEventListener("click", () => openCopyJsonModal(ctx));
+  root.querySelector('[data-act="social-card"]')?.addEventListener("click", () => openSocialCardModal(ctx));
   root.querySelector('[data-act="promote"]')?.addEventListener("click", () => openPromoteModal(ctx));
 
   // --- notes tab quick add ---
@@ -1430,6 +1442,192 @@ function openPromoteModal({ project, prompt, version }) {
       toast("Promoted");
     },
   });
+}
+
+// --- Share: builds a read-only link encoding a minimum prompt slice.
+// The payload lives in the URL hash (#/share?d=<base64url>), never
+// leaves the browser, and — like everything else in the app — never
+// carries secrets (readme, body, decisions yes; API keys never). ---
+async function openShareModal({ project, prompt, version }) {
+  let slice, url, err;
+  try {
+    slice = packShare({ project, prompt, versionId: version.id });
+    url = await buildShareUrl(slice);
+  } catch (e) {
+    err = e?.message || String(e);
+  }
+  const includes = slice
+    ? `${slice.versions.length} version${slice.versions.length === 1 ? "" : "s"} · ${slice.branches.length} branch${slice.branches.length === 1 ? "" : "es"}`
+    : "—";
+  modal({
+    title: "Share this version",
+    sub: "The full prompt slice is encoded into the link. Open it in any browser — no account required.",
+    body: err
+      ? `<div class="modal-error" style="display:block">${escapeHtml(err)}</div>`
+      : `
+        <div class="row">
+          <label>Shareable URL</label>
+          <textarea readonly style="min-height:96px;font-family:var(--mono);font-size:12px" data-share-url>${escapeHtml(url)}</textarea>
+        </div>
+        <div class="kv" style="margin-top:8px">
+          <div class="row"><div class="k">Includes</div><div class="v">${escapeHtml(includes)}</div></div>
+          <div class="row"><div class="k">Target</div><div class="v">v${version.number} — ${escapeHtml(version.title)}</div></div>
+          <div class="row"><div class="k">Length</div><div class="v">${url ? url.length.toLocaleString() + " chars" : "—"}</div></div>
+        </div>
+        <div class="helper">Anyone with this link can read the prompt body, version chain, and README. Nothing is sent to a server.</div>`,
+    primary: "Copy link", secondary: "Close",
+    onSubmit: async () => {
+      if (!url) return;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast("Share link copied", {
+          actionLabel: "Open preview",
+          onAction: () => { window.open(url, "_blank", "noopener"); },
+        });
+      } catch {
+        toast("Copy failed — select the text manually");
+      }
+    },
+  });
+  // Auto-select the URL so ⌘C works immediately.
+  setTimeout(() => {
+    const ta = document.querySelector("[data-share-url]");
+    if (ta) { ta.focus(); ta.select(); }
+  }, 50);
+}
+
+// --- Copy-JSON (D3 fork-to-clipboard): produces a portable
+// prompt-tree-template/1 payload with a `source` provenance block. The
+// same payload re-imports cleanly through the templates library, so a
+// fork and a curated starter walk the exact same consumer path. ---
+function openCopyJsonModal({ project, prompt, version }) {
+  let payload, err;
+  try {
+    payload = packFork({ project, prompt, version });
+  } catch (e) {
+    err = e?.message || String(e);
+  }
+  const json = payload ? JSON.stringify(payload, null, 2) : "";
+  const sizeKb = json ? (new TextEncoder().encode(json).byteLength / 1024).toFixed(1) : "0";
+  modal({
+    title: "Copy prompt as portable JSON",
+    sub: "prompt-tree-template/1 envelope with a source provenance block. Paste into another Prompt Tree workspace to re-import.",
+    body: err
+      ? `<div class="modal-error" style="display:block">${escapeHtml(err)}</div>`
+      : `
+        <div class="row">
+          <label>JSON payload</label>
+          <textarea readonly style="min-height:220px;font-family:var(--mono);font-size:12px" data-fork-json>${escapeHtml(json)}</textarea>
+        </div>
+        <div class="kv" style="margin-top:8px">
+          <div class="row"><div class="k">Source</div><div class="v">${escapeHtml(project.name)} / ${escapeHtml(prompt.name)} · v${version.number}</div></div>
+          <div class="row"><div class="k">Hash</div><div class="v mono">${escapeHtml((version.contentHash || "").slice(0, 7))}</div></div>
+          <div class="row"><div class="k">Size</div><div class="v">${sizeKb} KB · ${json.length.toLocaleString()} chars</div></div>
+        </div>
+        <div class="actions" style="margin-top:8px;justify-content:flex-end;display:flex;gap:8px">
+          <button type="button" class="btn" data-act="fork-download">${icon("download", { size: 13 })} Download .json</button>
+        </div>
+        <div class="helper">Forks never carry runs, proposals, decisions, or API keys — just the version's content, variables, and README with provenance.</div>`,
+    primary: "Copy JSON", secondary: "Close",
+    onSubmit: async () => {
+      if (!json) return;
+      try {
+        await navigator.clipboard.writeText(json);
+        toast("Copied portable JSON to clipboard");
+      } catch {
+        toast("Copy failed — select the textarea manually");
+      }
+    },
+  });
+  setTimeout(() => {
+    const ta = document.querySelector("[data-fork-json]");
+    if (ta) { ta.focus(); ta.select(); }
+    const dl = document.querySelector('[data-act="fork-download"]');
+    dl?.addEventListener("click", () => {
+      if (!payload) return;
+      downloadJSON(fileNameForFork(payload), payload);
+      toast("Downloaded fork JSON");
+    });
+  }, 50);
+}
+
+// --- Social card (E3): 1200×630 OG-aspect SVG card for the current
+// version. Preview renders inline via a data-URL; Download SVG / PNG
+// and Copy SVG let the user paste straight into GitHub, Twitter, or a
+// company readme. Theme toggle (dark/light) is live in the modal. ---
+function openSocialCardModal({ project, prompt, version }) {
+  let theme = "dark";
+  const input = cardInputFromWorkspace({ project, prompt, version });
+
+  const build = () => renderSocialCard(input, { theme });
+
+  modal({
+    title: "Social card",
+    sub: "1200 × 630 OpenGraph-aspect. Drop it into a GitHub README, a tweet, or any share preview.",
+    body: `
+      <div class="row">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px">
+          <label style="margin:0">Preview</label>
+          <div style="display:inline-flex;gap:6px" role="group" aria-label="theme">
+            <button type="button" class="btn sm" data-theme="dark">Dark</button>
+            <button type="button" class="btn sm" data-theme="light">Light</button>
+          </div>
+        </div>
+        <div class="code-frame" style="padding:8px;background:var(--bg-sunk)">
+          <img data-social-preview alt="Social card preview"
+               src="${escapeAttr(svgToDataUrl(build()))}"
+               style="display:block;width:100%;height:auto;border-radius:6px" />
+        </div>
+      </div>
+      <div class="kv" style="margin-top:8px">
+        <div class="row"><div class="k">Size</div><div class="v">1200 × 630 px</div></div>
+        <div class="row"><div class="k">Source</div><div class="v">${escapeHtml(project.name)} / ${escapeHtml(prompt.name)} · v${version.number}</div></div>
+      </div>
+      <div class="actions" style="margin-top:8px;justify-content:flex-end;display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn" data-act="copy-svg">${icon("download", { size: 13 })} Copy SVG</button>
+        <button type="button" class="btn" data-act="download-svg">${icon("download", { size: 13 })} Download .svg</button>
+        <button type="button" class="btn" data-act="download-png">${icon("download", { size: 13 })} Download .png</button>
+      </div>
+      <div class="helper">The card includes the project / prompt / version metadata and the brand lockup. No body content, no runs — it's a link preview, not a data export.</div>`,
+    primary: "Done", secondary: null,
+    onSubmit: async () => { /* Done closes the modal, no-op */ },
+  });
+
+  // Wire theme toggle + download actions after the modal paints.
+  setTimeout(() => {
+    const host = document.querySelector(".modal");
+    if (!host) return;
+    const img = host.querySelector("[data-social-preview]");
+    const repaint = () => { if (img) img.src = svgToDataUrl(build()); };
+    host.querySelectorAll("[data-theme]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        theme = btn.dataset.theme;
+        repaint();
+        host.querySelectorAll("[data-theme]").forEach((b) => b.classList.toggle("accent", b.dataset.theme === theme));
+      });
+    });
+    // Default active state on Dark.
+    host.querySelector('[data-theme="dark"]')?.classList.add("accent");
+
+    host.querySelector('[data-act="copy-svg"]')?.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(build());
+        toast("Copied SVG to clipboard");
+      } catch { toast("Copy failed"); }
+    });
+    host.querySelector('[data-act="download-svg"]')?.addEventListener("click", () => {
+      const blob = new Blob([build()], { type: "image/svg+xml" });
+      downloadBlob(blob, `${fileNameForCard(input)}-${theme}.svg`);
+      toast("Downloaded SVG");
+    });
+    host.querySelector('[data-act="download-png"]')?.addEventListener("click", async () => {
+      try {
+        const blob = await svgToPng(build(), { width: 1200, height: 630 });
+        downloadBlob(blob, `${fileNameForCard(input)}-${theme}.png`);
+        toast("Downloaded PNG");
+      } catch (err) { toast("PNG failed: " + (err.message || err)); }
+    });
+  }, 50);
 }
 
 function openNoteModal({ prompt, version }) {

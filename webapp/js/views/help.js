@@ -228,6 +228,100 @@ Perfect for diff vs baseline regressions.
 
 ---
 
+## Social cards
+
+The **Social card** button on the prompt action bar produces a
+1200 × 630 SVG — the standard OpenGraph aspect. It carries the brand
+lockup, the project / prompt / version metadata, the content hash,
+the change summary, and the branches / versions / runs counts. No
+prompt body, no runs, no keys — it is a **link preview**, not a
+data export.
+
+Three export paths live in the same modal:
+
+- **Copy SVG** — drops the raw markup on your clipboard; paste into
+  a GitHub README or a Markdown file.
+- **Download .svg** — keeps the file editable (vector, infinitely
+  scalable).
+- **Download .png** — rasterises via an in-page \`<canvas>\` for
+  platforms that reject SVG uploads (Twitter, LinkedIn at the time of
+  writing).
+
+Toggle between dark and light themes live; the preview repaints
+instantly.
+
+---
+
+## Copy as portable JSON — forks
+
+The **Copy JSON** button on the prompt action bar produces a
+\`prompt-tree-template/1\` payload — the same shape as the curated
+library entries — with a \`source\` provenance block that names the
+origin project, prompt, version, content hash, and timestamp. Use it
+to:
+
+- archive a version of a prompt outside this browser,
+- mail a single prompt to a teammate,
+- seed a starter template in another Prompt Tree workspace.
+
+The paired action on **Templates → Import JSON** accepts the same
+payload. Curated starter, hand-edited template, or a fork from
+somewhere else — all three route into the exact same preview and
+Import flow. One envelope, one validator, one importer.
+
+What a fork carries: body, variables, messages, README, purpose,
+provenance. What it never carries: runs, proposals, decisions,
+activity, member list, API keys.
+
+---
+
+## Template library
+
+The workspace topbar has a **Templates** link. It opens a curated
+grid of starter packs — six today, grouped by category
+(classification, extraction, reasoning, code, summarization,
+evaluation). Each card shows a description, tags, variable count,
+and a count of suggested test cases.
+
+Click a card to open the preview. You see the full prompt body, the
+variables, the suggested test cases (reference only — not imported
+automatically), and a project picker. **Import into workspace**
+creates a new prompt on that project's \`main\` branch, with the
+template's body, variables, and README already wired. You land on
+the new prompt ready to edit or run.
+
+Imports are atomic — one Ctrl/⌘+Z unwinds the whole import if you
+changed your mind.
+
+The library JSON ships as a static asset
+(\`webapp/data/templates.json\`) with a versioned envelope
+(\`prompt-tree-template-library/1\`). A malformed library fails the
+test suite before it reaches a release.
+
+---
+
+## Share links
+
+The **Share** button on the prompt view packs a minimum slice of the
+current prompt — project + prompt metadata, the selected version, its
+full ancestor chain, the branches that chain touches, the README — into
+the URL hash. Format tag: \`prompt-tree-share/1\`. The payload is
+gzip-compressed when your browser supports \`CompressionStream\` and
+base64url-encoded otherwise, with a short \`algo.\` prefix so older
+clients can refuse links they can't decode.
+
+Opening a share URL renders a dedicated **read-only view**: no Edit,
+no Run, no Promote, no IndexedDB write. You can still click through
+the version chain in the sidebar — that re-targets in memory only.
+Everything that lives on the viewer's own workspace stays untouched.
+
+Privacy note: share payloads ride in the URL fragment (after \`#\`),
+which browsers **never send to servers**. But they *are* inside the
+URL you paste — treat them like you'd treat a private gist. Nothing
+sensitive (API keys, run outputs, secrets) is ever included.
+
+---
+
 ## Privacy & data location
 
 - All your work lives in IndexedDB on **this device, this browser**.

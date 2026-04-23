@@ -527,6 +527,7 @@ input[type="checkbox"], input[type="radio"] { -webkit-appearance: auto; appearan
 .modal {
   background: var(--bg-elev); border-radius: var(--radius-xl); border: 1px solid var(--border);
   width: min(560px, 92vw); padding: 22px; box-shadow: var(--shadow-pop);
+  max-height: 80vh; overflow-y: auto;
 }
 .modal h2 { margin: 0 0 4px; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
 .modal .modal-sub { color: var(--fg-muted); font-size: 12.5px; margin-bottom: 14px; }
@@ -1595,5 +1596,188 @@ input[type="checkbox"], input[type="radio"] { -webkit-appearance: auto; appearan
   .topbar { padding: 6px 8px; }
   .topbar-logo span:last-child { display: none; } /* hide wordmark, keep sigil */
   .main-head .actions .btn { flex: 1 1 100%; }
+}
+
+/* ---------------------------------------------------------------------------
+   Landing page (E1) — only rendered when the workspace has zero visible
+   projects. Layout is centered, generous, and uses the same design tokens
+   as the rest of the app so the jump to the populated workspace feels
+   seamless.
+   --------------------------------------------------------------------------- */
+.topbar-landing { border-bottom-color: transparent; }
+
+.landing {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 48px 24px 72px;
+}
+
+.landing-hero {
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px;
+  padding: 16px 12px 28px;
+}
+.landing-mark {
+  width: 160px; height: 160px;
+  filter: drop-shadow(0 10px 36px rgba(6, 148, 162, 0.24));
+}
+.landing-title {
+  font-size: clamp(36px, 6vw, 56px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  margin: 4px 0 0;
+  background: linear-gradient(135deg, #155e75 0%, #0891b2 55%, #22d3ee 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.landing-tagline {
+  font-size: 15px; font-weight: 500; color: var(--fg-muted);
+  letter-spacing: 0.02em; text-transform: uppercase;
+  display: inline-flex; gap: 8px; justify-content: center;
+}
+.landing-tagline .reveal-word { display: inline-block; }
+
+/* ---------------------------------------------------------------------------
+   Hero reveal (E2) — sequential word + title fade-ins synced to the
+   mark-hero.svg SMIL timeline.  Each `.reveal-*` class carries the right
+   `animation-delay` so the text lands *as* the corresponding node in the
+   SVG bounces into place:
+
+     reveal-word-1 ("Branch.")   → fork node,         t = 1.40 s
+     reveal-word-2 ("Prove.")    → refinement tip,    t = 2.30 s
+     reveal-word-3 ("Ship.")     → crown expansion,   t = 3.00 s
+     reveal-title ("Prompt Tree") → full assembly,    t = 3.50 s
+     reveal-pitch                                      t = 3.85 s
+     reveal-ctas                                       t = 4.15 s
+     reveal-subcta                                     t = 4.40 s
+
+   The reveal animation is identical across targets (fade + micro-rise)
+   so everything feels like one coherent assembly.
+   --------------------------------------------------------------------------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(6px);
+  animation: landing-reveal 0.55s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.reveal-word-1 { animation-delay: 1.40s; }
+.reveal-word-2 { animation-delay: 2.30s; }
+.reveal-word-3 { animation-delay: 3.00s; }
+.reveal-title  { animation-delay: 3.50s; }
+.reveal-pitch  { animation-delay: 3.85s; }
+.reveal-ctas   { animation-delay: 4.15s; }
+.reveal-subcta { animation-delay: 4.40s; }
+
+@keyframes landing-reveal {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Reduced-motion users: SMIL is out of our reach (we swap the animated
+   SVG for the static mark in JS), but the CSS reveals MUST collapse to
+   the final state instantly so the text doesn't flash. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal { animation: none; opacity: 1; transform: none; }
+}
+html[data-reduced-motion="1"] .reveal { animation: none; opacity: 1; transform: none; }
+.landing-pitch {
+  max-width: 620px;
+  color: var(--fg-mute);
+  font-size: 16px; line-height: 1.55;
+  margin: 4px 0 8px;
+}
+.landing-ctas {
+  display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;
+  margin-top: 6px;
+}
+.btn.lg {
+  font-size: 14px; padding: 10px 18px; gap: 8px;
+  border-radius: calc(var(--radius) + 2px);
+}
+.landing-subcta {
+  margin-top: 4px;
+  font-size: 13px; color: var(--fg-faint);
+}
+.landing-subcta a { color: var(--accent); }
+.landing-subcta a:hover { text-decoration: underline; }
+
+.landing-pillars {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 48px 0 32px;
+}
+.landing-pillar {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.landing-pillar-icon {
+  width: 36px; height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent-fg);
+}
+.landing-pillar-title {
+  font-size: 15px; font-weight: 600; color: var(--fg);
+}
+.landing-pillar-copy {
+  font-size: 13px; line-height: 1.5; color: var(--fg-mute);
+}
+
+.landing-features {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 12px 0 36px;
+  padding: 24px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+.landing-feature-col .eyebrow { margin-bottom: 10px; }
+.landing-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.landing-list li {
+  font-size: 13px; line-height: 1.5; color: var(--fg-mute);
+  padding-left: 14px; position: relative;
+}
+.landing-list li::before {
+  content: ""; position: absolute; left: 0; top: 8px;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent);
+}
+.landing-list strong { color: var(--fg); font-weight: 600; }
+.landing-list code {
+  font-family: var(--font-mono); font-size: 11.5px;
+  background: var(--bg-sunk); padding: 1px 6px; border-radius: 4px;
+}
+
+.landing-foot {
+  text-align: center;
+  display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;
+  font-size: 12px; color: var(--fg-faint);
+  margin-top: 24px;
+}
+.landing-foot .dot { color: var(--ink-300); }
+
+/* Tablet + mobile: collapse the pillar + feature grids to a single column
+   so nothing ever truncates or scrolls sideways. */
+@media (max-width: 820px) {
+  .landing { padding: 32px 16px 56px; }
+  .landing-pillars { grid-template-columns: 1fr; margin: 32px 0 24px; }
+  .landing-features { grid-template-columns: 1fr; padding: 20px; }
+  .landing-mark { width: 96px; height: 96px; }
+}
+@media (max-width: 380px) {
+  .landing { padding: 20px 12px 40px; }
+  .landing-mark { width: 84px; height: 84px; }
+  .btn.lg { font-size: 13px; padding: 9px 14px; }
+  /* Pillar icon + copy stay readable on tiny phones */
+  .landing-pillar { padding: 14px 16px; }
 }
 

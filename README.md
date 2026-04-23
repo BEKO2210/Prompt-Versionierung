@@ -12,8 +12,8 @@ versioned, peer-reviewed, evaluated, and shippable.
 
 [![CI](https://github.com/BEKO2210/Prompt-Versionierung/actions/workflows/ci.yml/badge.svg)](https://github.com/BEKO2210/Prompt-Versionierung/actions/workflows/ci.yml)
 [![Pages](https://github.com/BEKO2210/Prompt-Versionierung/actions/workflows/pages.yml/badge.svg)](https://github.com/BEKO2210/Prompt-Versionierung/actions/workflows/pages.yml)
-[![Tests](https://img.shields.io/badge/tests-109%20passing-brightgreen)](#development)
-[![Phase](https://img.shields.io/badge/roadmap-A%20%C2%B7%20B%20%C2%B7%20C%20done-0891b2)](#roadmap)
+[![Tests](https://img.shields.io/badge/tests-164%20passing-brightgreen)](#development)
+[![Phase](https://img.shields.io/badge/roadmap-A%20%C2%B7%20B%20%C2%B7%20C%20%C2%B7%20D%20done%20%C2%B7%20E%20shipping-0891b2)](#roadmap)
 [![Offline](https://img.shields.io/badge/offline-first-10b981)](#why-browser-first)
 [![Providers](https://img.shields.io/badge/providers-Anthropic%20%C2%B7%20OpenAI%20%C2%B7%20Gemini%20%C2%B7%20Mock-0e7490)](#ai-providers)
 [![Stack](https://img.shields.io/badge/runtime-vanilla%20ESM%20%C2%B7%20no%20build-22d3ee)](#architecture)
@@ -37,7 +37,7 @@ versioned, peer-reviewed, evaluated, and shippable.
 | **Surfaces** | Browser-only webapp · Next.js 15 reference |
 | **State** | IndexedDB · zero backend · BroadcastChannel for cross-tab sync |
 | **Real LLMs** | Anthropic Claude · OpenAI GPT/o-series · Google Gemini · deterministic Mock |
-| **Stats** | 109 vitest cases · 30 captured screens · 0 console errors · 0 layout regressions · 0 npm-audit vulnerabilities |
+| **Stats** | 164 vitest cases · 30 captured screens · 0 console errors · 0 layout regressions · 0 npm-audit vulnerabilities |
 | **Reversible** | Every destructive action undoable via <kbd>Ctrl</kbd>+<kbd>Z</kbd> · soft-delete with restore · archive ↔ unarchive |
 | **Phases shipped** | A (Foundation) · B (Real-world readiness) · C (Differentiators) |
 | **Phases pending** | D (Network effects) · E (Brand) · F (Backend — *GitHub for Prompts*) |
@@ -167,6 +167,37 @@ A 1000 %-thought-through rule that most prompt tools get wrong:
 - **Import**: drop it in another browser or tab — state is restored byte-identical.
 - **Cross-tab sync**: BroadcastChannel keeps every open tab in lockstep.
 - **Reset demo** button in the topbar restores the seeded demo without touching your keys.
+
+### 12. Shareable & forkable
+
+- **Share link** on any prompt version → base64url-encoded
+  `prompt-tree-share/1` slice in the URL fragment, gzip-compressed via
+  `CompressionStream` when the browser supports it. Opens a
+  dedicated read-only view that can't write to your workspace.
+- **Template library** on `/templates` — six curated starters
+  (classifier, extractor, CoT, code review, summariser, rubric judge),
+  one-click import into any project. The import is atomic: single
+  `mutate()`, single <kbd>Ctrl</kbd>+<kbd>Z</kbd> to unwind.
+- **Copy JSON** on the prompt action bar → portable
+  `prompt-tree-template/1` payload with a `source` provenance block.
+  Paste it on another machine's `/templates` → *Import JSON* → new
+  prompt with the same body / variables / README.
+- **Social card** per prompt — 1200 × 630 SVG with the brand lockup,
+  project / prompt / version metadata, stats strip. Dark and light
+  themes. Download SVG / PNG, or copy the SVG straight to the
+  clipboard for a GitHub README.
+
+### 13. Marketing-grade landing
+
+When the workspace is empty (`projects.length === 0`), `/` renders a
+proper first-impression surface: animated brand mark, gradient
+wordmark, tagline "Branch. Prove. Ship.", pillar row, feature grid.
+The hero mark assembles — seed first, then the line reaches the fork
+(Branch.), then the refinement side-branch (Prove.), then the crown
+expands on the canonical head (Ship.) — with the three words
+revealing in exact sync with each node's arrival.
+`prefers-reduced-motion` is honoured on both layers: the SVG swaps
+to a static mark, CSS reveals collapse to an instant paint.
 
 ---
 
@@ -508,6 +539,30 @@ Copy or download as a stable `prompt-tree-run/1` JSON envelope.
 | ![Tour spotlight on the Demo card](scripts/screenshots/25-tour-step1.png) | ![Tour spotlight on the project's activity timeline](scripts/screenshots/26-tour-step2.png) |
 | First-visit auto-start. 7 steps over the real demo. Tutorial button replays it any time. | Spotlight via giant `box-shadow`-as-mask, navigates between routes between steps. |
 
+### Phase D — Share, import, fork
+
+| Share modal | Template library |
+|---|---|
+| ![Share modal — shareable URL, includes / target / length, Copy link + Open preview](scripts/screenshots/31-share-modal.png) | ![Template library — six curated starters grouped by category](scripts/screenshots/33-templates-library.png) |
+| `prompt-tree-share/1` slice packed into the URL hash, gzip-compressed via `CompressionStream` when available. Never leaves the browser. | Six starters (classifier, extractor, CoT, code review, summariser, rubric judge). One-click preview → Import into any project. |
+
+| Read-only share view | Copy-as-JSON (fork) |
+|---|---|
+| ![Share view — read-only render of the shared version with a version-chain sidebar](scripts/screenshots/32-share-view.png) | ![Copy-JSON modal — portable prompt-tree-template/1 payload with source provenance](scripts/screenshots/35-copy-json-modal.png) |
+| Dedicated read-only surface. Every string escaped at the boundary. Workspace state never mutated. | The payload is the same shape as a template, plus a `source` block (project / prompt / version / hash / forkedAt). Paste into *Import JSON* on any other workspace. |
+
+### Phase E — Brand surfaces
+
+| Landing page | Hero motion — "Branch." beat |
+|---|---|
+| ![Landing page — hero, 3 pillars, 2-column feature grid, footer](scripts/screenshots/37-landing.png) | ![Hero at t=1.5s — seed + line + fork visible, only "BRANCH." revealed](scripts/screenshots/39-hero-beat-branch.png) |
+| Only rendered when the workspace is empty. The *Explore with the demo* CTA re-seeds the workspace; *Create your first project* opens the modal. | The tagline words reveal in sync with each node's arrival: fork → `Branch.`, refinement tip → `Prove.`, crown → `Ship.` |
+
+| Social card modal | Social card — light theme |
+|---|---|
+| ![Social card modal — 1200×630 preview, theme toggle, Copy SVG / Download .svg / Download .png](scripts/screenshots/43-social-card-modal.png) | ![Social card — light theme, 1200×630 OG-aspect, Ticket classifier · v2 · APPROVED](scripts/screenshots/46-social-card-light.png) |
+| OG-aspect preview with live theme toggle. Three export actions for every platform. | The card carries project / prompt / version / hash / stats. No body content — it's a link preview, not a data export. |
+
 ---
 
 ## Roadmap
@@ -548,21 +603,29 @@ brand mark, GitHub Pages deploy.
 | C6 | Fuzzy command palette via Fuse.js |
 | C7 | Approval gate on proposals — configurable N approvals required to merge |
 
-### Phase D — Network effects (pending)
+### Phase D — Network effects **(done)**
 
 | # | Item |
 |---|---|
-| D1 | Public read-only share links (encode minimum prompt slice into the URL hash — works without a backend) |
-| D2 | Prompt template library — curated starter packs, importable in one click |
-| D3 | Fork-to-clipboard — one-click copy of a prompt as a portable JSON, paste anywhere |
+| D1 | Public read-only share links — base64url-encoded `prompt-tree-share/1` slices in the URL fragment, gzip-compressed via `CompressionStream` when the browser supports it, dedicated read-only view with every string escaped at the boundary. See [`docs/share-format.md`](docs/share-format.md). |
+| D2 | Prompt template library — six curated starters (`/templates` route) importable in one click; new prompt with body + variables + README already wired. |
+| D3 | Fork-to-clipboard — one-click Copy-JSON on the prompt action bar produces a portable `prompt-tree-template/1` payload with a `source` provenance block; the Templates library's *Import JSON* button re-imports the same shape, so forks and curated starters walk the same consumer path. |
 
-### Phase E — Brand & positioning (pending)
+### Phase E — Brand & positioning **(shipping)**
 
 | # | Item |
 |---|---|
-| E1 | Marketing landing page on `/` (when no project exists) |
-| E2 | Hero motion — animated mark assembly (seed → fork → head, the brand sigil) |
-| E3 | Social card SVG generator per prompt |
+| E1 | Marketing landing page on `/` when no project exists — hero + three pillars + two feature columns; *Explore with the demo* CTA re-seeds the workspace. |
+| E2 | Hero motion — animated mark assembly (seed → fork → head, the brand sigil); tagline words reveal in sync with each node's arrival; `prefers-reduced-motion` swaps to the static mark. |
+| E3 | Social card SVG generator per prompt — 1200 × 630 OG-aspect card with project / prompt / version metadata, the brand lockup, stats strip, dark + light themes. Download as SVG or PNG, or copy the SVG straight to the clipboard. |
+
+<div align="center">
+
+<img src="scripts/screenshots/46-social-card-dark.png" alt="Prompt Tree social card (dark)" width="640"/>
+
+*A social card generated per prompt — 1200 × 630, dark theme. Light theme is one click away.*
+
+</div>
 
 ### Phase F — Backend: **GitHub for Prompts** (long vision) — see [next section](#the-long-vision--github-for-prompts)
 
