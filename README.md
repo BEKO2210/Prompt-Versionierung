@@ -8,9 +8,40 @@ The offline-first, browser-only, git-style operating system for prompts.
 Where other tools *collect* prompts, Prompt Tree **graduates** them —
 versioned, peer-reviewed, evaluated, and shippable.
 
+[![CI](https://github.com/BEKO2210/Prompt-Versionierung/actions/workflows/ci.yml/badge.svg)](https://github.com/BEKO2210/Prompt-Versionierung/actions/workflows/ci.yml)
+[![Pages](https://github.com/BEKO2210/Prompt-Versionierung/actions/workflows/pages.yml/badge.svg)](https://github.com/BEKO2210/Prompt-Versionierung/actions/workflows/pages.yml)
+[![Tests](https://img.shields.io/badge/tests-101%20passing-brightgreen)](#development)
+[![Phase](https://img.shields.io/badge/roadmap-A%20%C2%B7%20B%20%C2%B7%20C%20done-6d28d9)](#roadmap)
+[![Offline](https://img.shields.io/badge/offline-first-10b981)](#why-browser-first)
+[![Providers](https://img.shields.io/badge/providers-Anthropic%20%C2%B7%20OpenAI%20%C2%B7%20Gemini%20%C2%B7%20Mock-4338ca)](#ai-providers)
+[![Stack](https://img.shields.io/badge/runtime-vanilla%20ESM%20%C2%B7%20no%20build-a855f7)](#architecture)
+[![License](https://img.shields.io/badge/license-source--available-blue)](#licence)
+
 [Quick start](#quick-start) · [Features](#what-it-does) · [AI providers](#ai-providers) · [Architecture](#architecture) · [Roadmap](#roadmap) · [The long vision — GitHub for Prompts](#the-long-vision--github-for-prompts)
 
 </div>
+
+---
+
+<table>
+<tr>
+<td>
+
+**At a glance**
+
+| | |
+|---|---|
+| **Surfaces** | Browser-only webapp · Next.js 15 reference |
+| **State** | IndexedDB · zero backend · BroadcastChannel for cross-tab sync |
+| **Real LLMs** | Anthropic Claude · OpenAI GPT/o-series · Google Gemini · deterministic Mock |
+| **Stats** | 101 vitest cases · 30 captured screens · 0 console errors · 0 layout regressions |
+| **Phases shipped** | A (Foundation) · B (Real-world readiness) · C (Differentiators) |
+| **Phases pending** | D (Network effects) · E (Brand) · F (Backend — *GitHub for Prompts*) |
+| **Vendored runtime deps** | `marked` · `fuse.js` · `js-tiktoken` — all pure ESM, no CDN |
+
+</td>
+</tr>
+</table>
 
 ---
 
@@ -110,6 +141,10 @@ full reference.
 - <kbd>?</kbd> — open Help from anywhere
 - <kbd>Esc</kbd> — close modal / palette / drawer
 
+> [!TIP]
+> Hit <kbd>?</kbd> from any screen for the full reference (12 sections,
+> sticky table of contents, all rendered with marked).
+
 ### 10. Offline & portable
 
 - **IndexedDB** for state, **localStorage** for theme + tour flag, **separate IndexedDB store** for encrypted API keys (AES-GCM at-rest, never exported).
@@ -167,9 +202,10 @@ time via the *Tutorial* button in the topbar.
 The same folder is what GitHub Pages serves at deploy time — see
 `.github/workflows/pages.yml`.
 
-**Don't open `index.html` with a double-click.** The `file://` protocol
-blocks ES-module imports and `fetch("./data/seed.json")`. You'll see
-only the splash. Always go through HTTP.
+> [!WARNING]
+> **Don't open `index.html` with a double-click.** The `file://` protocol
+> blocks ES-module imports and `fetch("./data/seed.json")`. You'll see
+> only the splash. Always go through HTTP.
 
 ### Surface B — the Next.js + Prisma reference
 
@@ -217,6 +253,11 @@ browser** under `prompt-tree` → `secrets` in IndexedDB, encrypted with
 - **Never** crossed between tabs via BroadcastChannel
 - **Never** sent to any server (there is no server)
 - **Deleted** when you clear browser data — there is no remote copy
+
+> [!IMPORTANT]
+> The **no-keys-on-the-server** rule is a deliberate product decision,
+> not a temporary limitation. It survives Phase F (Backend) too — see
+> the [contract](#the-contract) under the long vision.
 
 If a provider's key is missing when you run, the run row records
 `mocked: true` + `mockedReason: "no key for <provider>"` so the Trend
@@ -281,6 +322,11 @@ from domain code. The webapp mirrors the exact same layering — that's
 why both surfaces can share the same mental model.
 
 ### Invariants you do not break
+
+> [!NOTE]
+> These are **contract**, not style. The whole product breaks subtly if
+> any of them is weakened — diffs lie, the audit trail loses fidelity,
+> proposals stop being safe to merge.
 
 Straight from [`docs/02-domain.md`](docs/02-domain.md):
 
@@ -646,6 +692,7 @@ approve) lands in v2 with proper scope-based OAuth.
   export shape are versioned and stable — anyone can write a competing
   client that reads / writes them.
 
+> [!IMPORTANT]
 > **Why this works.** The browser-only product proves there's value in
 > the primitives — diffs, lineage, evaluations, proposals, governance.
 > The backend just adds **distribution and discovery** on top of those
