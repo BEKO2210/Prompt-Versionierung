@@ -38,5 +38,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# UI walkthrough artifacts
-scripts/screenshots/
+# UI walkthrough scratch outputs (per-run audit reports etc.)
+# NOTE: scripts/screenshots/ is intentionally NOT ignored — those PNGs
+# are referenced from README.md and are the canonical visual record of
+# the current UI. Re-run scripts/ui-walkthrough.js to regenerate them.
+scripts/audit-out/
