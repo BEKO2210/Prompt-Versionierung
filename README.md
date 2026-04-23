@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="webapp/assets/mark-animated.svg" alt="Prompt Tree" width="128" height="128" />
+
 # Prompt Tree
 
 **Branch. Prove. Ship.**
