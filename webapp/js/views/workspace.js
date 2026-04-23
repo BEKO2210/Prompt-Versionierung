@@ -92,12 +92,37 @@ function projectsGrid(projects) {
 }
 
 // ---------------------------------------------------------------------------
-// Landing page (E1) — only reachable when projects.length === 0. Sells what
-// the app is, directly; two CTAs (create project, load the seeded demo) +
-// a Templates link. No topbar action row — we want the first impression
-// uncluttered.
+// Landing page (E1). Two modes, keyed on whether the visitor already has
+// visible projects:
+//
+//   • Empty workspace → "Create your first project" + "Explore with the demo"
+//     (the classic first-impression surface for brand-new visitors).
+//   • Has projects   → "Go to your workspace" + "Create a new project"
+//     (the visitor reached the landing via the Welcome button and just
+//     wants back in — we don't offer the demo-reset here because it
+//     would wipe their actual workspace).
+//
+// The topbar stays minimal: no export/import/reset row; just brand +
+// Templates + Help + Theme so the first impression stays focused.
 // ---------------------------------------------------------------------------
 function renderLanding() {
+  const s = getState();
+  const visibleProjects = (s.projects || []).filter((p) => !p.archivedAt && !p.deletedAt);
+  const hasProjects = visibleProjects.length > 0;
+
+  const ctas = hasProjects ? `
+    <button class="btn accent lg" data-act="enter-workspace">${icon("arrow", { size: 14 })} Go to your workspace</button>
+    <button class="btn lg" data-act="new-project">${icon("plus", { size: 14 })} Create a new project</button>
+  ` : `
+    <button class="btn accent lg" data-act="new-project">${icon("plus", { size: 14 })} Create your first project</button>
+    <button class="btn lg" data-act="load-demo">${icon("play", { size: 14 })} Explore with the demo</button>
+  `;
+
+  const subCta = hasProjects
+    ? `You have <strong>${visibleProjects.length}</strong> project${visibleProjects.length === 1 ? "" : "s"} already.
+       Or <a href="#/templates">browse the template library</a> for curated starter prompts.`
+    : `Or <a href="#/templates">browse the template library</a> — six curated starter prompts ready to import.`;
+
   return html`
     <div class="topbar topbar-landing">
       <a class="topbar-logo" href="#/">
@@ -105,6 +130,7 @@ function renderLanding() {
         Prompt Tree
       </a>
       <span class="topbar-spacer"></span>
+      ${hasProjects ? `<button class="topbar-action" data-act="enter-workspace">${icon("arrow", { size: 13 })} Workspace</button>` : ""}
       <a class="topbar-action" href="#/templates">${icon("rubric", { size: 13 })} Templates</a>
       <a class="topbar-action" href="#/help">${icon("info", { size: 13 })} Help</a>
       <button class="topbar-action" data-act="theme">${icon(currentTheme() === "dark" ? "sun" : "moon", { size: 13 })}</button>
@@ -125,11 +151,10 @@ function renderLanding() {
           browser. No backend, no telemetry, no lock-in.
         </p>
         <div class="landing-ctas reveal reveal-ctas">
-          <button class="btn accent lg" data-act="new-project">${icon("plus", { size: 14 })} Create your first project</button>
-          <button class="btn lg" data-act="load-demo">${icon("play", { size: 14 })} Explore with the demo</button>
+          ${ctas}
         </div>
         <div class="landing-subcta reveal reveal-subcta">
-          Or <a href="#/templates">browse the template library</a> — six curated starter prompts ready to import.
+          ${subCta}
         </div>
       </section>
 
@@ -213,16 +238,43 @@ export function bindWorkspace(root) {
 
   // Landing-page specific: load the seeded demo into an empty workspace.
   // Reuses the same `resetTo` path the topbar "Reset demo" uses; no
-  // confirm dialog because there's literally nothing to lose. Setting
-  // the landing-seen marker is what promotes the visitor from the
-  // marketing surface to the workspace proper.
-  root.querySelector('[data-act="load-demo"]')?.addEventListener("click", async () => {
-    const seed = await fetch("./data/seed.json").then((r) => r.json());
-    const { resetTo } = await import("../store.js");
-    await resetTo(seed);
-    markLandingSeen();
-    toast("Loaded the demo");
-    navigate("/");
+  // confirm dialog because there's literally nothing to lose. The
+  // marker is set BEFORE resetTo so the notify() that fires from
+  // resetTo's state replacement renders directly onto the grid — no
+  // flash of the landing re-appearing in between.
+  root.querySelector('[data-act="load-demo"]')?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    if (btn.disabled) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch("./data/seed.json", { cache: "no-cache" });
+      if (!res.ok) throw new Error(`seed.json returned HTTP ${res.status}`);
+      const seed = await res.json();
+      if (!seed || !Array.isArray(seed.projects) || seed.projects.length === 0) {
+        throw new Error("seed.json carries no projects");
+      }
+      markLandingSeen();
+      const { resetTo } = await import("../store.js");
+      await resetTo(seed);
+      toast("Loaded the demo");
+      navigate("/");
+    } catch (err) {
+      console.error("load-demo failed:", err);
+      toast("Demo failed to load: " + (err.message || err));
+      btn.disabled = false;
+    }
+  });
+
+  // Landing → grid: direct escape hatch for returning users who hit
+  // the landing via the Welcome button and just want back in. Does
+  // NOT reset state — purely a marker flip + navigate. There can be
+  // multiple of these on the page (hero CTA + topbar shortcut), so
+  // wire all of them.
+  root.querySelectorAll('[data-act="enter-workspace"]').forEach((el) => {
+    el.addEventListener("click", () => {
+      markLandingSeen();
+      navigate("/");
+    });
   });
 
   root.querySelector('[data-act="export"]')?.addEventListener("click", async () => {

@@ -176,7 +176,16 @@ prompts. Where competitors collect prompts, we **graduate** them.
   "signs up" by taking a CTA, then dashboard forever). The populated
   topbar gained a **Welcome** button that clears the marker so the
   landing is reachable any time. When the workspace has zero visible
-  projects, the landing always wins regardless of the marker. Landing
+  projects, the landing always wins regardless of the marker. The
+  CTAs are state-aware: visitors with existing projects see a primary
+  **Go to your workspace** button (pure navigation — never resets
+  their data) plus *Create a new project*; genuinely-fresh visitors
+  see *Create your first project* + *Explore with the demo*. The
+  demo loader marks the landing seen *before* calling `resetTo` so
+  the re-render lands directly on the grid without flashing the
+  landing a second time, guards against a broken `seed.json` with a
+  visible error toast (the marker is only set on success), and
+  disables the button mid-click to block double submits. Landing
   surface itself:
   animated brand mark, `Prompt Tree` gradient wordmark, tagline
   ("Branch. Prove. Ship."), 2-3-sentence pitch, two primary CTAs
@@ -227,7 +236,7 @@ Contract: nothing in this app is a one-way door except the explicit
 | **Templates smoke** | `scripts/templates-smoke.js` — `/templates` grid paints ≥ 3 cards → preview modal shows body + Import CTA → import creates a new prompt in the demo project with the template body preserved → Ctrl+Z unwinds the import atomically. |
 | **Fork smoke** | `scripts/fork-smoke.js` — Copy-JSON modal emits a valid `prompt-tree-template/1` with a `source` block → paste into `/templates` → preview shows the same body → import creates a new prompt with byte-identical body → Ctrl+Z unwinds. Also asserts malformed paste surfaces a friendly inline error. |
 | **Social-card smoke** | `scripts/social-card-smoke.js` — modal opens with a 1200 × 630 inline SVG preview carrying the project / prompt / version metadata; theme toggle dark ↔ light actually repaints the preview; Download .svg fires a real download event with a `prompttree-social-*.svg` filename. |
-| **Landing smoke** | `scripts/landing-smoke.js` — with the seed stubbed to an empty workspace, `/` paints the hero / 3 pillars / 2 feature columns; hero uses `mark-hero.svg` and splits the tagline into three `.reveal-word` spans; under `prefers-reduced-motion: reduce` the src swaps to static `mark.svg` and reveal opacity is 1 instantly; *Explore with the demo* loads the real seed and repaints the grid; *Create your first project* opens the New-project modal; landing topbar never carries the populated action row. Gate check: fresh visit with real seeded demo still shows the landing first, CTA sets `prompt-tree:landing-seen=1`, reload skips the landing, **Welcome** topbar action clears the marker and re-reveals it. |
+| **Landing smoke** | `scripts/landing-smoke.js` — 7 tests. Empty workspace paints hero / 3 pillars / 2 feature columns with `mark-hero.svg` + 3 `.reveal-word` spans; `prefers-reduced-motion` swaps to static mark + instant reveal; *Explore with the demo* loads the real seed and paints the grid; *Create your first project* opens the New-project modal; landing topbar never carries the populated action row; fresh visit with a real seeded demo shows the landing first with the state-aware *Go to your workspace* CTA (not the demo reset — that would wipe the user's data); Go-to-workspace keeps state intact, sets the marker, paints the grid; reload skips the landing; **Welcome** topbar clears the marker and re-reveals the landing; broken `seed.json` surfaces a *Demo failed* toast, leaves the visitor on the landing, does NOT set the marker, and re-enables the button for retry. |
 
 ### 2.8 Security status (browser-only runtime)
 
