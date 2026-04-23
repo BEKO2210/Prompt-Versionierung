@@ -367,4 +367,86 @@ Promote), tabs, content + variables + metadata + analyzer signals.
 
 ---
 
-**→ Teil 3a fertig. Sag „weiter" für 3b (Modals + Compare + Blame Screenshots).**
+### Modals — every action in one click
+
+| Run modal | Batch modal |
+|---|---|
+| ![Run modal — model profile, test case, bindings, evaluators, live cost preview](scripts/screenshots/16-run-modal.png) | ![Batch modal — 2-column matrix of model profiles × test cases with live total + cost](scripts/screenshots/30-batch-modal.png) |
+| One model × one test case. Live `≈ N input tokens · ~$X` updates on every keystroke. | One version × N models × M cases. Select-all per group, live `N runs · ≈ $X input cost`. <kbd>B</kbd> hotkey. |
+
+| Edit → new version | Fork |
+|---|---|
+| ![Edit modal — title, body, change summary, rationale, expected improvement](scripts/screenshots/14-edit-modal.png) | ![Fork modal — branch name + initial version on the new branch](scripts/screenshots/15-fork-modal.png) |
+| Versions are immutable. Saving creates the *next* version on the current branch with required `changeSummary`. | Branch off any version. Branch name validated against `^[a-z][a-z0-9-]{0,63}$`. |
+
+| Promote | Command palette |
+|---|---|
+| ![Promote modal — pointer vs squashed, required rationale](scripts/screenshots/17-promote-modal.png) | ![Command palette — fuzzy search across projects, prompts, versions](scripts/screenshots/13-palette.png) |
+| Pointer (fast-forward) or squashed (linear main). Rationale required — written into a `PromptDecision`. | Fuse.js fuzzy ranking, weighted across title / slug / project / snippet. <kbd>⌘ K</kbd> from anywhere. |
+
+### Compare — side-by-side diff with statistical proof
+
+![Compare view — side-by-side body diff, A/B summary with Wilson CI + Newcombe diff, run-evidence table](scripts/screenshots/08-compare.png)
+
+The **A/B summary** under the diff is the killer feature: per-side
+Wilson 95 % CI, signed Δ with Newcombe-method-10 CI, and an honest
+"B > A at 95 %" / "not significant" badge. No more eyeballing averages.
+
+### Blame — every line traced to its origin
+
+![Blame view — gutter shows the version + author + change summary that introduced each line](scripts/screenshots/28-blame.png)
+
+Toggle *Show blame* in the Content tab. Walks the parent chain root →
+target, propagates per-line attribution through line-diffs, collapses
+consecutive same-source lines via rowspan. Click any gutter to jump.
+
+### Refine, Search, Datasets, Models — the meta surfaces
+
+| Refine | Search |
+|---|---|
+| ![Refine view — analyzer findings + heuristic-proposed body, accept forks a refine-vN branch](scripts/screenshots/09-refine.png) | ![Search view — full-text across prompts in a project](scripts/screenshots/10-search.png) |
+| Five analyzers + a heuristic proposer. Accept = fork a `refine-vN-XXXX` branch with a `refinement` lineage edge. | Project-scoped FTS. SQL-LIKE today, FTS5 / pgvector later. |
+
+| Datasets | Models |
+|---|---|
+| ![Datasets view — test cases grouped by dataset, with input vars + expected output](scripts/screenshots/11-datasets.png) | ![Models view — model profiles per provider, with default temperature + max tokens](scripts/screenshots/12-models.png) |
+| A test case binds variables and pins an expected output (regex, schema, similarity, rubric). | Model profiles abstract `(provider, modelId, defaults)` so the same prompt can be re-targeted with a click. |
+
+### Proposals — pull-requests for prompts
+
+![Proposal detail — approval bar, head + diff with inline review comments, paired evidence, discussion thread](scripts/screenshots/22-proposal-detail.png)
+
+Top: **approval bar** with progress (`1 of 2 · 1 more needed`),
+approver avatars, *Approve* / *Revoke* / *change* (threshold). Merge
+button is dimmed + grayscale until the gate opens. Below: the diff with
+**line-anchored review comments**, paired run evidence, full discussion
+thread. The Proposals tab on the prompt view lists every open / merged /
+declined proposal:
+
+![Proposals tab — list of all proposals with status, source version, comment count](scripts/screenshots/20-proposals-tab.png)
+
+### Run drawer — full execution envelope
+
+![Run drawer — rendered prompt, raw output, structured JSON, evaluations, KV metadata, Copy/Download JSON](scripts/screenshots/24-run-drawer.png)
+
+Click any row in the Runs table. Right-side drawer with: rendered
+prompt (after variable substitution), raw model output, structured
+output (if JSON), all evaluations with per-evaluator notes, full KV
+metadata (provider, response id, latency, tokens, cost, mock flag).
+Copy or download as a stable `prompt-tree-run/1` JSON envelope.
+
+### Settings, Help, first-run tour
+
+| Settings | Help |
+|---|---|
+| ![Settings — three providers with per-key inputs, status pills, get-a-key links, privacy footer](scripts/screenshots/23-settings.png) | ![Help — sticky TOC + 12 sections rendered with marked](scripts/screenshots/27-help.png) |
+| API keys live here. AES-GCM at-rest, never exported, dropped with browser data. | Concepts, workflow, shortcuts, providers, keys, cost, JSON format, privacy, extending, why, troubleshooting. <kbd>?</kbd> jumps here. |
+
+| Tour step 1 — welcome | Tour step 2 — activity feed |
+|---|---|
+| ![Tour spotlight on the Demo card](scripts/screenshots/25-tour-step1.png) | ![Tour spotlight on the project's activity timeline](scripts/screenshots/26-tour-step2.png) |
+| First-visit auto-start. 7 steps over the real demo. Tutorial button replays it any time. | Spotlight via giant `box-shadow`-as-mask, navigates between routes between steps. |
+
+---
+
+**→ Teil 3b fertig. Sag „weiter" für 3c (volle Roadmap + GitHub-for-Prompts-Vision).**
