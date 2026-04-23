@@ -141,4 +141,184 @@ invariants there are not suggestions.
 
 ---
 
-**→ Das war Teil 1. Sag „weiter" für Teil 2 (Quick start, AI-Provider, Architektur).**
+## Quick start
+
+Prompt Tree ships in **two execution surfaces** that share the same domain
+model. Pick whichever matches your use case.
+
+### Surface A — the browser-only webapp (recommended)
+
+No build step, no database, no account. Just serve the `webapp/` folder:
+
+```bash
+# Clone the repo
+git clone https://github.com/BEKO2210/Prompt-Versionierung
+cd Prompt-Versionierung
+
+# Any static server works; Python's one-liner is fine.
+cd webapp && python3 -m http.server 8080
+```
+
+Open `http://localhost:8080` → you'll see the seeded **Demo** project.
+The first-run tour walks you through 7 real surfaces (activity feed,
+version tree, proposals, run modal, settings, shortcuts). Replay any
+time via the *Tutorial* button in the topbar.
+
+The same folder is what GitHub Pages serves at deploy time — see
+`.github/workflows/pages.yml`.
+
+**Don't open `index.html` with a double-click.** The `file://` protocol
+blocks ES-module imports and `fetch("./data/seed.json")`. You'll see
+only the splash. Always go through HTTP.
+
+### Surface B — the Next.js + Prisma reference
+
+For teams that want a proper backend today (sqlite/postgres, server
+actions, CI build artifacts), there's a full Next.js implementation of
+the same service layer.
+
+```bash
+# 1. install deps
+npm install
+
+# 2. init the database (SQLite file in prisma/dev.db)
+cp .env.example .env
+npx prisma generate
+npx prisma db push
+
+# 3. seed a demo project (optional but recommended)
+npm run db:seed
+
+# 4. run the app
+npm run dev
+```
+
+Open `http://localhost:3000`, pick the `demo` project, open the
+`ticket-classifier` prompt. Everything you can do in the browser-only
+webapp is mirrored here, plus a real SQL-backed query surface for when
+your workspace grows past a few dozen prompts.
+
+---
+
+## AI providers
+
+By default every run goes through the deterministic **mock** adapter — the
+whole product loop (fork → edit → run → evaluate → promote) works with
+**no API key at all**. Swap to a real provider when you want real outputs.
+
+### Bring your own key (browser-only)
+
+Open `#/settings` (or the *Settings* link in the topbar). Paste your key
+for any of the three real providers. Keys are stored **only in this
+browser** under `prompt-tree` → `secrets` in IndexedDB, encrypted with
+**AES-GCM** bound to this origin. They are:
+
+- **Never** included in Export / Import
+- **Never** crossed between tabs via BroadcastChannel
+- **Never** sent to any server (there is no server)
+- **Deleted** when you clear browser data — there is no remote copy
+
+If a provider's key is missing when you run, the run row records
+`mocked: true` + `mockedReason: "no key for <provider>"` so the Trend
+chart and A/B summary can distinguish real from mock scores.
+
+### Supported providers
+
+| Provider | Models | Auth | Notes |
+|---|---|---|---|
+| **Anthropic (Claude)** | Any `claude-*` id | `x-api-key` header + `anthropic-dangerous-direct-browser-access: true` | Direct-browser calls; the CORS-safe header is required by the API |
+| **OpenAI** | `gpt-4o*`, `gpt-4.1*`, `o1*`, `o3*`, `o4*` | `Authorization: Bearer …` | o-series folds `system` into a leading user message and uses `max_completion_tokens`; handled transparently |
+| **Google Gemini** | `gemini-*` | `x-goog-api-key` header (never in URL) | `system` → `systemInstruction`; safety-block responses are surfaced as a typed error |
+| **Mock** | `mock-default` (or any id) | — | Deterministic offline fallback — perfect for CI, demos, and unit-testing evaluators |
+
+### Cost preview
+
+Before you run, the Run modal shows `≈ N input tokens · ~$X input cost`
+live, recomputing on every keystroke in the bindings textarea. It uses:
+
+- **Token counting**: [js-tiktoken](https://github.com/dqbd/tiktoken) (vendored) for OpenAI families; `chars/4` fallback otherwise. Method label `"≈"` flags the estimate.
+- **Pricing**: `webapp/js/pricing.js` keeps a per-model `$/M tokens` table with longest-prefix family matching (so `claude-opus-4-7-20260101` picks up the `claude-opus-4` row). Rates are **statically versioned in the repo** — update them with a PR.
+
+The same block is shown in the Batch modal summed across every selected
+cell: `"N runs (P models × C cases) ≈ $X input cost · output billed
+per-token"`.
+
+### Next.js surface (Surface B)
+
+Set `MODEL_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=sk-…` in `.env`,
+then create a `ModelProfile` with `provider="anthropic"` and a real
+model id. Swapping providers does not touch domain or service code —
+new providers are one file under `src/adapters/models/` plus one line in
+`registry.ts`.
+
+### Adding a new provider
+
+1. Create `webapp/js/adapters/models/<name>.js` (and optionally `src/adapters/models/<name>.ts` for Surface B).
+2. Implement the adapter contract — the shape is documented in `webapp/js/adapters/models/types.js` and every existing adapter is a fine template (see `anthropic.js`, `openai.js`, `gemini.js`).
+3. Register it in `webapp/js/adapters/models/registry.js`.
+4. Add pricing rows to `webapp/js/pricing.js`.
+5. Add a Settings row to `webapp/js/views/settings.js` so users can paste a key.
+6. Done. The Run modal, Batch modal, Runs table, Trend chart, A/B summary all pick it up automatically.
+
+---
+
+## Architecture
+
+### Layering rule
+
+The same four layers on both surfaces; the rule is enforced by review
+and — soon — by lint.
+
+```
+app/  or  webapp/js/views/       ← UI. Calls services only. Never touches DB or providers.
+src/services/  or  webapp/js/services.js  ← owns every write. Calls domain + adapters.
+src/domain/   or  webapp/js/domain.js     ← pure. No DB, no fetch, no env. Invariants live here.
+src/adapters/ or  webapp/js/adapters/     ← pluggable I/O: Prisma, model providers, evaluators.
+```
+
+**Never** import Prisma from UI code. **Never** call model providers
+from domain code. The webapp mirrors the exact same layering — that's
+why both surfaces can share the same mental model.
+
+### Invariants you do not break
+
+Straight from [`docs/02-domain.md`](docs/02-domain.md):
+
+1. **Versions are immutable.** The only field that may transition is `status`. Body, parent, number, and `contentHash` are write-once. Editing a prompt always creates a *new* version.
+2. **Every governance action is a `PromptDecision`.** Promote, deprecate, archive, set-canonical-branch — atomic write of the decision row with its rationale.
+3. **Every lineage-changing operation that can't be represented by a single `parentVersionId` writes a `PromptLineageEdge`.** Kinds: `branch`, `merge`, `cherry_pick`, `refinement`.
+4. **Every state-changing service records an activity event.** No silent mutations.
+5. **Exactly one canonical branch per prompt.** Setting canonical is itself a logged decision.
+
+### Tech stack
+
+| Layer | Webapp (offline) | Next.js reference |
+|---|---|---|
+| UI | Vanilla ES modules + hand-written CSS | Next.js 15 App Router + React 19 + Tailwind |
+| State | IndexedDB (`prompt-tree` db, `kv` store) + localStorage fallback | Prisma ORM + SQLite (dev) / Postgres (prod) |
+| Types | JSDoc where it helps | TypeScript strict mode |
+| Routing | 75-line hash router | Next App Router file-based routing |
+| Cross-tab sync | `BroadcastChannel` | — |
+| Secrets | Separate IDB store, AES-GCM at-rest | `.env` |
+| Tests | Shared — same Vitest suite runs against pure `src/domain/**` | |
+| CI | 4 jobs: domain-tests, typecheck, lint, build | |
+| Deploy | GitHub Pages (`.github/workflows/pages.yml`) | Any Node-capable host |
+
+### Vendored dependencies (webapp)
+
+We keep the runtime dependency graph **tiny**. Every vendored library
+must be a pure ES module, work on GitHub Pages with no build step, have
+no transitive deps we don't ship, and carry a permissive licence.
+
+| Library | Why | Licence |
+|---|---|---|
+| [`marked`](https://github.com/markedjs/marked) | Real markdown for READMEs + proposal descriptions | MIT |
+| [`fuse.js`](https://fusejs.io) | Fuzzy command palette + search ranking | Apache-2.0 |
+| [`js-tiktoken`](https://github.com/dqbd/tiktoken) | Token counting → cost prediction | MIT |
+
+Loaded under `webapp/vendor/<name>/`, imported via relative ES module
+URLs — **no CDN at runtime** so the app stays fully offline-capable.
+
+---
+
+**→ Das war Teil 2. Sag „weiter" für Teil 3 (Screenshots, vollständige Roadmap, GitHub-for-Prompts-Vision, Development, Contributing, Lizenz).**
