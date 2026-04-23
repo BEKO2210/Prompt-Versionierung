@@ -654,4 +654,154 @@ approve) lands in v2 with proper scope-based OAuth.
 
 ---
 
-**→ Teil 3d fertig. Sag „weiter" für 3e (Development-Befehle, CI, Contributing, Non-Goals, Lizenz — der Schluss).**
+## Development
+
+### Commands
+
+```bash
+npm install            # install deps
+npm run dev            # Surface B (Next.js) on :3000
+
+npm run typecheck      # tsc --noEmit, strict mode
+npm run lint           # next lint (eslint + next/core-web-vitals)
+npm run test           # vitest run (pure domain + adapter tests)
+npm run test:watch     # vitest watch mode
+
+npm run build          # prisma generate + next build
+
+# Database (Surface B)
+npm run db:generate    # prisma generate
+npm run db:push        # prisma db push (sqlite/postgres)
+npm run db:seed        # tsx prisma/seed.ts → demo project
+```
+
+### Webapp dev loop
+
+The browser-only app has **no build step**. Edit any file under
+`webapp/`, hard-refresh the browser. That's it. For a local server:
+
+```bash
+cd webapp && python3 -m http.server 8080
+```
+
+### Headless verification
+
+Three Playwright scripts make sure the UI doesn't regress before push:
+
+```bash
+node scripts/ui-walkthrough.js   # 30 screens, asserts 0 console errors
+node scripts/audit.js            # 23 routes × 3 viewports — link / overflow / tap-target audit
+node scripts/batch-smoke.js      # presses B, asserts new run rows appear
+node scripts/approval-smoke.js   # approve → gate opens → revoke → gate closes
+```
+
+The walkthrough rewrites every `scripts/screenshots/*.png` you saw in
+the gallery above — so the README images are always the *current* app.
+
+### CI
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push:
+
+| Job | Purpose |
+|---|---|
+| `domain-tests` | `npm run test` — 101 vitest cases, no DB |
+| `typecheck` | `tsc --noEmit` — strict mode |
+| `lint` | `next lint` — eslint + next/core-web-vitals |
+| `build` | `prisma db push` against a SQLite CI db + `next build` |
+
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml) deploys the
+`webapp/` folder to GitHub Pages on every push to `main` / `master`.
+
+---
+
+## Contributing
+
+Read these in order before touching code:
+
+1. [`CLAUDE.md`](CLAUDE.md) — the master plan: where we are, where we're going, and the rules of engagement (§5).
+2. [`docs/02-domain.md`](docs/02-domain.md) — the contract. Invariants here are not suggestions.
+3. [`docs/04-architecture.md`](docs/04-architecture.md) — the layering rule (§4.2).
+
+### The five rules we never break
+
+Straight from `CLAUDE.md` §5.4:
+
+1. We do not weaken the **version-immutability** rule.
+2. We do not add a *Save* button that silently overwrites a version.
+3. We do not collapse distinct concepts (prompt content vs. run envelope vs. evaluation vs. decision) into one table.
+4. We do not reach into Prisma from UI code "to just fix this one thing".
+5. We do not introduce a runtime dependency without a clear domain need *and* matching the bar in `CLAUDE.md` §4 (pure ESM, no build step, permissive licence, zero peer deps we don't ship).
+
+### How to extend
+
+| Goal | Where |
+|---|---|
+| New analyzer | `src/domain/analyzers/<name>.ts` and `webapp/js/domain.js`. Add to the analyzer list; write a vitest case. |
+| New evaluator | `src/adapters/evaluators/<name>.ts` and `webapp/js/domain.js`. Register in the evaluator registry. |
+| New model provider | `src/adapters/models/<name>.ts` and `webapp/js/adapters/models/<name>.js`. Register in `registry.{ts,js}`. Add pricing rows. Add Settings row. |
+| New entity | Prisma schema + service file + state shape in webapp + docs update. |
+| New screen | `app/p/[project]/...` for Next.js, `webapp/js/views/<name>.js` for the offline app. Register in the router and `main.js`. |
+
+### Workflow
+
+1. Pick **one item** from `CLAUDE.md` §3. If it doesn't fit in one turn, split it into numbered sub-items in place.
+2. On commit, move the item to §2 (Done) with a one-line note.
+3. Run `node scripts/ui-walkthrough.js` and require **0 console errors** before pushing.
+4. Update `webapp/data/seed.json` if the schema changed so the demo reflects the new feature.
+
+---
+
+## Anti-positioning
+
+What Prompt Tree is **not**, deliberately:
+
+| Other tools | Why we are not them |
+|---|---|
+| **Maxim AI** — end-to-end SaaS | Closed cloud, vendor lock-in. Your prompts and runs are theirs. |
+| **LangSmith** — observability tied to LangChain | Framework-coupled, not portable. |
+| **Promptfoo** — CLI-first dev tool | No collaboration UI, no review workflow. |
+| **PromptLayer** — non-technical users | Weak versioning, weak diffs, no governance trail. |
+| **Langfuse** — OSS observability | Run-time, not authoring. Tells you what happened; not how to ship the next version. |
+
+We are also explicitly **not** a prompt vault, not a wrapper around one
+model, not a SaaS dashboard. We are **tools, not telemetry**.
+
+---
+
+## Reading order for the docs
+
+Beyond this README, the design documents live in [`docs/`](docs/):
+
+1. [`docs/01-product.md`](docs/01-product.md) — product thesis, personas, requirements
+2. [`docs/02-domain.md`](docs/02-domain.md) — **the contract**: entities, lineage, promotion, status rules
+3. [`docs/03-ux.md`](docs/03-ux.md) — screens, flows, keyboard UX
+4. [`docs/04-architecture.md`](docs/04-architecture.md) — stack, layering rule, services, indexing
+5. [`docs/05-roadmap.md`](docs/05-roadmap.md) — milestones, MVP scope, risks
+6. [`docs/run-format.md`](docs/run-format.md) — the stable `prompt-tree-run/1` envelope schema
+7. [`HOW_IT_WORKS.md`](HOW_IT_WORKS.md) — German-language walkthrough for non-engineers
+8. [`CLAUDE.md`](CLAUDE.md) — the master plan + contributor handbook
+
+The docs are the source of truth. **If code disagrees with them, the
+code is wrong.**
+
+---
+
+## Licence
+
+Source-available, all rights reserved by the project owner.
+
+A permissive open-source licence (likely MIT or Apache-2.0) will be
+chosen before the first tagged release. Until then, please open an
+issue if you want to use Prompt Tree commercially.
+
+---
+
+<div align="center">
+
+**Prompt Tree** — *Branch. Prove. Ship.*
+
+[Live demo (GitHub Pages)](https://beko2210.github.io/Prompt-Versionierung/) ·
+[Issues](https://github.com/BEKO2210/Prompt-Versionierung/issues) ·
+[CLAUDE.md](CLAUDE.md)
+
+</div>
