@@ -321,4 +321,50 @@ URLs — **no CDN at runtime** so the app stays fully offline-capable.
 
 ---
 
-**→ Das war Teil 2. Sag „weiter" für Teil 3 (Screenshots, vollständige Roadmap, GitHub-for-Prompts-Vision, Development, Contributing, Lizenz).**
+## Screenshots
+
+The headless walkthrough captures these on every commit (see
+[`scripts/ui-walkthrough.js`](scripts/ui-walkthrough.js)). They are the
+**actual app on the demo seed** — not mockups.
+
+### Workspace, project, prompt — the three primary screens
+
+| Workspace | Project dashboard |
+|---|---|
+| ![Workspace — projects grid with topbar actions](scripts/screenshots/01-workspace.png) | ![Project dashboard — counters, prompts grid, recent activity](scripts/screenshots/02-project.png) |
+| Project list with counts. Topbar carries Tutorial / Help / Settings / Export / Import / Reset / Theme. | Live counters (prompts, versions, branches, members), the prompts grid, and the project's recent activity feed. |
+
+The prompt view is where you spend most of your time:
+
+![Prompt view — rail with branches + version tree, main pane with action bar, content tab, variables, metadata, analyzer signals](scripts/screenshots/03-prompt-content.png)
+
+Left rail: prompt card, branch list (canonical crowned, hash chips), the
+DAG-shaped version tree. Main pane: breadcrumbs (`branch · vN · status ·
+hash`), action bar (Edit / Fork / Run / Batch / Refine / Compare /
+Promote), tabs, content + variables + metadata + analyzer signals.
+
+### Tabs on the prompt view
+
+| README | Runs & Evidence |
+|---|---|
+| ![README tab — full markdown rendered with marked](scripts/screenshots/18-readme.png) | ![Runs tab — table with score/cost/latency/provider columns + Export-all button](scripts/screenshots/04-prompt-runs.png) |
+| Per-prompt README, real markdown via vendored marked. | Every run on this version with score, cost, latency, provider, and the test case. Click any row to open the run drawer. |
+
+| Trend | Activity |
+|---|---|
+| ![Trend tab — SVG line chart of mean score per version](scripts/screenshots/29-trend.png) | ![Activity tab — timeline of every state-changing event](scripts/screenshots/19-activity.png) |
+| Hand-rolled SVG chart with mean line + per-test-case lines, hover tooltips, click-to-jump. | Append-only log: version_created, run_completed, proposal_opened, …. |
+
+| Lineage | Decisions |
+|---|---|
+| ![Lineage tab — ancestry / descendants / explicit edges](scripts/screenshots/05-prompt-lineage.png) | ![Decisions tab — every promote / deprecate / archive with rationale](scripts/screenshots/06-prompt-decisions.png) |
+| Parent + descendants + explicit edges (`branch`, `merge`, `cherry_pick`, `refinement`). | The audit trail. Promote and friends never silent. |
+
+| Notes | Releases |
+|---|---|
+| ![Notes tab — observations / action items per version](scripts/screenshots/07-prompt-notes.png) | ![Releases tab — tagged canonical versions with auto-drafted notes](scripts/screenshots/21-releases-tab.png) |
+| Free-form per-version notes typed by humans. | Tag a canonical version; release notes are auto-drafted from change summaries. |
+
+---
+
+**→ Teil 3a fertig. Sag „weiter" für 3b (Modals + Compare + Blame Screenshots).**
