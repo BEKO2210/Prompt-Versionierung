@@ -228,6 +228,26 @@ Perfect for diff vs baseline regressions.
 
 ---
 
+## The landing page
+
+First-time visitors land on a marketing-grade welcome surface before
+any project data. Two CTAs promote you into the app: **Create your
+first project** opens the project modal, **Explore with the demo**
+loads the seeded demo workspace. Either action sets a
+\`prompt-tree:landing-seen\` localStorage marker — after that, \`/\`
+always paints the project grid directly (like GitHub's dashboard for
+logged-in users).
+
+Want to see the landing again? The topbar has a **Welcome** button
+that clears the marker and navigates back. Your workspace state is
+untouched — the button is a navigation, not a reset.
+
+The only other way the landing shows up is when the workspace is
+genuinely empty (no visible projects after filters). In that case it
+wins regardless of the marker.
+
+---
+
 ## Social cards
 
 The **Social card** button on the prompt action bar produces a

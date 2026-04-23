@@ -76,7 +76,7 @@ function summarize(el) {
     const ctx = await browser.newContext({ viewport: { width: vp.w, height: vp.h } });
     // Suppress the auto-tour so it doesn't block clicks
     await ctx.addInitScript(() => {
-      try { localStorage.setItem("prompt-tree:tour:completed", "1"); } catch {}
+      try { localStorage.setItem("prompt-tree:tour:completed", "1"); localStorage.setItem("prompt-tree:landing-seen", "1"); } catch {}
     });
     const page = await ctx.newPage();
 

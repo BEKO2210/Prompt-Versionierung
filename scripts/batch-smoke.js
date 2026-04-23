@@ -12,7 +12,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   await wait(500);
   const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
-  await ctx.addInitScript(() => { try { localStorage.setItem("prompt-tree:tour:completed","1"); } catch {} });
+  await ctx.addInitScript(() => { try { localStorage.setItem("prompt-tree:tour:completed","1"); localStorage.setItem("prompt-tree:landing-seen","1"); } catch {} });
   const page = await ctx.newPage();
   const errs = [];
   page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });

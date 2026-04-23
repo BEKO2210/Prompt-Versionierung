@@ -5,7 +5,7 @@ import { start as startRouter, subscribe as subscribeRoute, route as currentRout
 import * as services from "./services.js";
 import { icon, toast } from "./ui/components.js";
 
-import { renderWorkspace,     bindWorkspace }     from "./views/workspace.js";
+import { renderWorkspace,     bindWorkspace, hasSeenLanding, markLandingSeen } from "./views/workspace.js";
 import { renderProjectView,   bindProjectView }   from "./views/project.js";
 import { renderPromptView,    bindPromptView, promptShortcuts } from "./views/prompt.js";
 import { renderCompareView,   bindCompareView }   from "./views/compare.js";
@@ -35,6 +35,18 @@ import {
   // Load state (IDB) or fall back to seed.
   const seed = await loadSeed();
   await loadState({ defaults: seed });
+
+  // One-time migration for users who had real projects before the
+  // landing gate shipped: if they already have visible projects and
+  // no landing marker, assume they've moved past the intro and set
+  // the marker silently. Genuine first-time visitors (no IDB state
+  // to begin with, or only the auto-seeded demo) don't match this
+  // condition, so they still see the landing on first paint.
+  const existing = (getState().projects || []).filter((p) => !p.archivedAt && !p.deletedAt);
+  const looksLikeDemoOnly = existing.length === 1 && existing[0]?.slug === "demo";
+  if (existing.length > 0 && !looksLikeDemoOnly && !hasSeenLanding()) {
+    markLandingSeen();
+  }
 
   startRouter();
   startMultiTabSync();

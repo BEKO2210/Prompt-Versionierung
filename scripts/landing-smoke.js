@@ -158,6 +158,49 @@ function fail(msg) { console.error("FAIL:", msg); process.exit(1); }
     await page.context().close();
   }
 
+  // ───────────── Test 4: gate — seeded workspace + no marker → landing ──
+  {
+    // Fresh context, no marker preset, real seed lands in IDB. We expect
+    // the landing page FIRST (not the grid) because the visitor hasn't
+    // acknowledged it yet. GitHub-style: marketing surface before
+    // dashboard until the user "signs in" (= takes a CTA).
+    const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+    await ctx.addInitScript(() => { try { localStorage.setItem("prompt-tree:tour:completed", "1"); } catch {} });
+    const page = await ctx.newPage();
+    const errs = [];
+    page.on("console", (m) => { if (m.type() === "error") errs.push("console: " + m.text()); });
+
+    await page.goto("http://localhost:4497/", { waitUntil: "networkidle" });
+    await wait(500);
+    const heroVisible = await page.$(".landing-hero");
+    if (!heroVisible) fail("fresh visit with seeded demo should still show the landing first");
+
+    // Click Explore-with-the-demo → flag should be set + grid appears.
+    await page.click('[data-act="load-demo"]');
+    await wait(800);
+    const flag = await page.evaluate(() => localStorage.getItem("prompt-tree:landing-seen"));
+    if (flag !== "1") fail(`expected landing-seen=1 after CTA, got ${flag}`);
+    const gridCards = await page.$$eval(".cards-grid > .card", (xs) => xs.length);
+    if (gridCards < 1) fail("after the CTA, grid should paint");
+
+    // Reload — the visitor should now land on the grid directly, never
+    // on the landing again, until they clear the marker.
+    await page.reload({ waitUntil: "networkidle" });
+    await wait(400);
+    const landingOnSecondVisit = await page.$(".landing-hero");
+    if (landingOnSecondVisit) fail("returning visitor with marker should skip the landing");
+
+    // The topbar "Welcome" action clears the marker and re-shows it.
+    await page.click('[data-act="show-landing"]');
+    await wait(400);
+    const landingAfterWelcome = await page.$(".landing-hero");
+    if (!landingAfterWelcome) fail("Welcome topbar action should re-reveal the landing");
+
+    if (errs.length) fail("test 4 console errors: " + errs.join(" | "));
+    console.log("✓ test 4: fresh → landing, CTA → flag + grid, return visit skips landing, Welcome re-reveals");
+    await ctx.close();
+  }
+
   console.log("\nAll landing-page tests passed.");
   await browser.close();
   server.kill();

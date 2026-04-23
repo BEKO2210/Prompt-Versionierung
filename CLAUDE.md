@@ -170,8 +170,14 @@ prompts. Where competitors collect prompts, we **graduate** them.
   `mark.svg` (SMIL is outside the stylesheet's reach), and
   `html[data-reduced-motion="1"]` collapses every `.reveal-*` animation
   to `animation: none; opacity: 1`.
-- **E1: Marketing landing page on `/`** — when the workspace has zero
-  visible projects, `/` now renders a proper first-impression surface:
+- **E1: Marketing landing page on `/`** — `/` renders the landing
+  surface on first visit (gated by a `prompt-tree:landing-seen`
+  localStorage marker, GitHub-style: marketing page until the visitor
+  "signs up" by taking a CTA, then dashboard forever). The populated
+  topbar gained a **Welcome** button that clears the marker so the
+  landing is reachable any time. When the workspace has zero visible
+  projects, the landing always wins regardless of the marker. Landing
+  surface itself:
   animated brand mark, `Prompt Tree` gradient wordmark, tagline
   ("Branch. Prove. Ship."), 2-3-sentence pitch, two primary CTAs
   (*Create your first project*, *Explore with the demo*), and a tertiary
@@ -221,7 +227,7 @@ Contract: nothing in this app is a one-way door except the explicit
 | **Templates smoke** | `scripts/templates-smoke.js` — `/templates` grid paints ≥ 3 cards → preview modal shows body + Import CTA → import creates a new prompt in the demo project with the template body preserved → Ctrl+Z unwinds the import atomically. |
 | **Fork smoke** | `scripts/fork-smoke.js` — Copy-JSON modal emits a valid `prompt-tree-template/1` with a `source` block → paste into `/templates` → preview shows the same body → import creates a new prompt with byte-identical body → Ctrl+Z unwinds. Also asserts malformed paste surfaces a friendly inline error. |
 | **Social-card smoke** | `scripts/social-card-smoke.js` — modal opens with a 1200 × 630 inline SVG preview carrying the project / prompt / version metadata; theme toggle dark ↔ light actually repaints the preview; Download .svg fires a real download event with a `prompttree-social-*.svg` filename. |
-| **Landing smoke** | `scripts/landing-smoke.js` — with the seed stubbed to an empty workspace, `/` paints the hero / 3 pillars / 2 feature columns; hero uses `mark-hero.svg` and splits the tagline into three `.reveal-word` spans; under `prefers-reduced-motion: reduce` the src swaps to static `mark.svg` and reveal opacity is 1 instantly; *Explore with the demo* loads the real seed and repaints the grid; *Create your first project* opens the New-project modal; landing topbar never carries the populated action row. |
+| **Landing smoke** | `scripts/landing-smoke.js` — with the seed stubbed to an empty workspace, `/` paints the hero / 3 pillars / 2 feature columns; hero uses `mark-hero.svg` and splits the tagline into three `.reveal-word` spans; under `prefers-reduced-motion: reduce` the src swaps to static `mark.svg` and reveal opacity is 1 instantly; *Explore with the demo* loads the real seed and repaints the grid; *Create your first project* opens the New-project modal; landing topbar never carries the populated action row. Gate check: fresh visit with real seeded demo still shows the landing first, CTA sets `prompt-tree:landing-seen=1`, reload skips the landing, **Welcome** topbar action clears the marker and re-reveals it. |
 
 ### 2.8 Security status (browser-only runtime)
 

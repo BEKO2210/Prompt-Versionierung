@@ -23,7 +23,7 @@ async function freshPage(browser) {
     viewport: { width: 1400, height: 900 },
     permissions: ["clipboard-read", "clipboard-write"],
   });
-  await ctx.addInitScript(() => { try { localStorage.setItem("prompt-tree:tour:completed", "1"); } catch {} });
+  await ctx.addInitScript(() => { try { localStorage.setItem("prompt-tree:tour:completed", "1"); localStorage.setItem("prompt-tree:landing-seen", "1"); } catch {} });
   const page = await ctx.newPage();
   const errs = [];
   page.on("console", (m) => { if (m.type() === "error") errs.push("console: " + m.text()); });

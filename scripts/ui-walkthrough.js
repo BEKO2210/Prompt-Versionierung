@@ -69,7 +69,7 @@ async function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
     // Pre-mark the tour completed so the first paint doesn't auto-open
     // the spotlight; we'll snap it explicitly below.
     await page.addInitScript(() => {
-      try { localStorage.setItem("prompt-tree:tour:completed", "1"); } catch {}
+      try { localStorage.setItem("prompt-tree:tour:completed", "1"); localStorage.setItem("prompt-tree:landing-seen", "1"); } catch {}
     });
     await page.goto("http://localhost:4420/", { waitUntil: "networkidle" });
     await wait(500);
