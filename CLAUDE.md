@@ -44,27 +44,112 @@ prompts. Where competitors collect prompts, we **graduate** them.
 
 ---
 
-## 2. What is shipped (Phase A — done)
+## 2. What is shipped
+
+### 2.1 Phase A — Foundation (done)
 
 - Domain model: projects, prompts, branches, versions, lineage edges,
-  decisions, runs, evaluations, suggestions, releases, proposals, members.
+  decisions, runs, evaluations, suggestions, releases, proposals,
+  members, approvals.
 - Service layer that owns every write. Versions are immutable; only
   `status` may transition.
-- Five refinement analyzers (ambiguity, missing constraints, unclear role,
-  redundancy, under-specification) + heuristic proposer.
+- Five refinement analyzers (ambiguity, missing constraints, unclear
+  role, redundancy, under-specification) + heuristic proposer.
 - Five evaluators (regex, schema, similarity, rubric, mock LLM judge).
 - Mock model adapter (deterministic, offline).
 - Two execution surfaces:
   - **Next.js + Prisma + SQLite** reference implementation (see `app/`,
     `src/`, `prisma/`, `tests/`).
   - **Offline web app** under `webapp/` running fully on IndexedDB.
-- Domain unit tests (74 vitest cases).
 - Premium brand mark + favicon + wordmark.
 - GitHub-Pages deploy workflow.
-- Collaboration layer (proposals, inline reviews, releases, activity feed,
-  README, member avatars).
-- Headless UI walkthrough (`scripts/ui-walkthrough.js`) capturing 22
-  reference screenshots and asserting 0 console errors / overflows.
+- Collaboration layer (proposals, inline reviews, releases, activity
+  feed, README, member avatars).
+
+### 2.2 Phase B — Real-world readiness (done)
+
+- Real LLM adapters for **Anthropic / OpenAI / Gemini** behind one
+  contract; deterministic mock fallback when a key is missing.
+- Secure key storage — separate IDB `secrets` store, **AES-GCM** at
+  rest, never exported / broadcast / sent to any server.
+- Standardised `prompt-tree-run/1` run envelope + `prompt-tree-runs/1`
+  bundle. Schema is versioned and documented in
+  [`docs/run-format.md`](docs/run-format.md).
+- Token counting + cost prediction. `js-tiktoken` for OpenAI families
+  with a cache; `chars/4` fallback for the rest. Live cost in Run +
+  Batch modals; per-row Cost column in the Runs table.
+- First-run onboarding tour — 7-step spotlight over the real demo,
+  replayable from the topbar.
+- Single-page Help reference — 12 sections, sticky TOC, `?` hotkey.
+
+### 2.3 Phase C — Differentiators (done)
+
+- **Blame view** — per-line attribution walks the parent chain; click a
+  gutter to jump to the source version.
+- **Score trend chart** — hand-rolled SVG line chart; mean line +
+  per-test-case lines; hover tooltips; click-to-jump.
+- **A/B testing with Wilson + Newcombe** — per-side 95 % CI on pass
+  rate, signed Δ CI for `B − A` (clamped to ±1), significance badge.
+- **Multi-model batch evaluation** — `B` hotkey opens a matrix modal
+  (profiles × test cases) with live total runs + cost estimate;
+  `services.batchRun` fans out via `Promise.allSettled`.
+- **Markdown via marked** — README, proposal descriptions, thread
+  comments, inline review comments.
+- **Fuzzy command palette via Fuse.js** — weighted keys (title 0.55 /
+  slug 0.15 / project 0.10 / snippet 0.20); substring fallback while
+  Fuse warms.
+- **Approval gate on proposals** — configurable N approvals required;
+  `approveProposal` / `unapproveProposal` / `setApprovalsRequired`;
+  merge button truly `[disabled]` until gate opens; self-approval by
+  opener is blocked.
+
+### 2.4 Reversibility — every destructive action can be undone
+
+Contract: nothing in this app is a one-way door except the explicit
+`purge*` call on an already-soft-deleted entity.
+
+- **Ctrl/⌘+Z hotkey** from any view undoes the last mutation. The store
+  pushes a `structuredClone` snapshot onto a bounded (50-entry)
+  `HistoryStack` before every write; `undo()` pops.
+- **Soft delete** — `deleteProject` / `deletePrompt` now set
+  `deletedAt`, not array-filter. `restoreProject` / `restorePrompt`
+  brings them back. `purgeProject` / `purgePrompt` refuses unless the
+  entity is already soft-deleted.
+- **Archive ↔ Unarchive** — `unarchiveProject` / `unarchivePrompt` /
+  `unarchiveBranch` are first-class services; each writes its own
+  `unarchive` decision row so the audit trail is symmetric.
+- **`reopenProposal`** on a declined proposal. Refuses on merged
+  proposals (the source version has already shipped).
+- **Toast with Undo button** — `toast(msg, { actionLabel, onAction })`
+  renders an inline pill button for 5 s after any destructive action.
+- **Secrets bypass the undo stack by design** — API keys are
+  environment, not state.
+
+### 2.5 Testing & verification
+
+| Surface | Count / result |
+|---|---|
+| **Vitest pure-domain cases** | 109 passing — `history.test.ts` (8), `approval.test.ts` (13), `stats.test.ts` (14), plus 74 foundational cases (rendering, diff, lineage, promotion, versioning, branching, hashing, status, analyzers, evaluators). |
+| **Headless walkthrough** | `scripts/ui-walkthrough.js` — 30 reference screenshots, 0 console errors enforced before every push. |
+| **Responsive audit** | `scripts/audit.js` — 23 routes × 3 viewports (1400 / 820 / 390). 0 horizontal scroll, 0 off-screen buttons, 0 tap-target violations (WCAG 2.5.8 AA). |
+| **Batch smoke** | `scripts/batch-smoke.js` — presses `B`, asserts run rows appear. |
+| **Approval smoke** | `scripts/approval-smoke.js` — approve → gate opens → revoke → gate closes. |
+| **Reversibility smoke** | `scripts/reversibility-smoke.js` — archive / delete / archive-branch → Ctrl+Z → state restored; also asserts the "Nothing to undo" guard. |
+
+### 2.6 Security status (browser-only runtime)
+
+- `npm audit`: **0 vulnerabilities** (was 5 moderate in the dev
+  chain; closed by vitest 2 → 4 on 2026-04-23).
+- Branch-wide security review: **0 HIGH / MEDIUM findings at
+  confidence ≥ 8**.
+- Every user-controlled string that lands in `innerHTML` goes through
+  `escapeHtml()`. Markdown through `marked` with built-in escaping.
+- Threat model: we defend against malicious cross-origin sites (origin
+  isolation does the work), opportunistic key exfiltration (AES-GCM +
+  separate IDB store), and supply-chain tampering of vendored libs
+  (no CDN at runtime). We do **not** defend against a local attacker
+  with full control of the user's browser profile — same contract
+  as `git`.
 
 ---
 
@@ -207,8 +292,12 @@ ES module URLs. No CDN at runtime so the app stays offline-capable.
    any sub-items.
 3. Add screenshots / before-after to `scripts/screenshots/` if the change
    is UI-visible.
-4. Run `node scripts/ui-walkthrough.js` and require **0 console errors**
-   before pushing.
+4. Run the **full verification gate** before pushing:
+   - `npm run typecheck` / `npm run lint` / `npm run test` → green
+   - `node scripts/ui-walkthrough.js` → 0 console errors
+   - `node scripts/audit.js` → 0 issues across 3 viewports
+   - Any relevant smoke (`batch-smoke`, `approval-smoke`,
+     `reversibility-smoke`) → pass
 5. Update `webapp/data/seed.json` if the schema changes so the demo
    reflects the new feature.
 
@@ -216,23 +305,47 @@ ES module URLs. No CDN at runtime so the app stays offline-capable.
 
 - Weaken the version immutability rule.
 - Add a "save" button that silently overwrites a version.
+- Ship a destructive action without a matching reverse path.
+  Archive needs unarchive. Delete is soft-delete by default; a
+  separate `purge*` exists for explicit hard-delete. Every
+  state-changing service pushes onto the undo stack via `mutate()`.
+- Store API keys anywhere they could end up in an export, a
+  cross-tab broadcast, the undo stack, or a backend — the
+  `secrets` IDB store is the single allowed location.
 - Collapse distinct concepts (prompt content vs run envelope vs
   evaluation vs decision) into one table.
 - Reach into Prisma from UI code "to just fix this one thing".
 - Introduce a runtime dependency without a clear domain need *and*
   matching the bar in §4.
-- Ship UI without a walkthrough check.
+- Introduce **purple** into the brand. The palette was swapped to
+  ocean cyan/teal on 2026-04-23 and stays there unless the brand DNA
+  in §1.1 is changed first.
+- Ship UI without a walkthrough check **and** an audit check.
+- Render user-controlled text into `innerHTML` without `escapeHtml()`
+  at the boundary. Markdown is the only exception, and only through
+  `marked` (never hand-rolled).
 
 ---
 
 ## 6. Files you'll touch most
 
 ```
-docs/02-domain.md          domain invariants
+docs/02-domain.md          domain invariants (the contract)
 prisma/schema.prisma       Next.js DB schema
+src/domain/                pure TS — analyzers, stats, history, approval, …
 src/services/              Next.js service layer
-webapp/js/services.js      offline service layer
+webapp/js/services.js      offline service layer (owns every write)
+webapp/js/store.js         IndexedDB + undo stack + cross-tab sync
+webapp/js/domain.js        pure JS mirror of src/domain
 webapp/js/views/           offline UI
-webapp/data/seed.json      demo data
+webapp/js/adapters/models/ LLM adapters (anthropic / openai / gemini / mock)
+webapp/js/ui/components.js toast (incl. toast-with-undo), modal, palette
+webapp/data/seed.json      demo data — keep in sync with the schema
+webapp/css/app.css         design tokens + every view's layout
+webapp/assets/*.svg        brand marks (mark, mark-animated, wordmark, favicon)
+scripts/ui-walkthrough.js  30-screen headless capture, 0 console errors
+scripts/audit.js           3-viewport responsive + a11y audit
+scripts/*-smoke.js         batch / approval / reversibility end-to-end
+tests/domain/              pure vitest cases (109 and counting)
 CLAUDE.md                  this file
 ```
