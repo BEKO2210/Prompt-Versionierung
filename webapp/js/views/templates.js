@@ -12,7 +12,7 @@ import { html, escapeHtml, escapeAttr, icon, brandMark, modal, toast } from "../
 import { md as renderMarkdown } from "../vendor.js";
 import { getState, commit } from "../store.js";
 import * as services from "../services.js";
-import { loadLibrary, groupByCategory } from "../templates.js";
+import { loadLibrary, groupByCategory, validateTemplate } from "../templates.js";
 import { navigate } from "../router.js";
 
 let _libraryCache = null;
@@ -35,6 +35,7 @@ export function renderTemplatesView() {
 export function bindTemplatesView(root) {
   // Topbar actions (always present).
   root.querySelector('[data-act="back"]')?.addEventListener("click", () => navigate("/"));
+  root.querySelector('[data-act="paste-import"]')?.addEventListener("click", () => openPasteImport());
 
   // Card clicks → preview modal.
   root.querySelectorAll("[data-template-id]").forEach((card) => {
@@ -78,6 +79,7 @@ function renderTopbar() {
         <span class="current">Templates</span>
       </span>
       <span class="topbar-spacer"></span>
+      <button class="topbar-action" data-act="paste-import">${icon("upload", { size: 13 })} Import JSON</button>
       <a class="topbar-action" href="#/">Back to workspace</a>
     </div>
   `;
@@ -253,4 +255,34 @@ function slugifyLike(name) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 64) || "untitled";
+}
+
+// ---------------------------------------------------------------------------
+// Paste-JSON import (D3 consumer side). Accepts any
+// `prompt-tree-template/1` payload — curated bundle entries and forks
+// alike — validates it, and routes into the exact same preview modal the
+// library uses. One importer, one validator, one service call.
+// ---------------------------------------------------------------------------
+function openPasteImport() {
+  modal({
+    title: "Import prompt JSON",
+    sub: "Paste a prompt-tree-template/1 payload (a curated template or a fork). You'll get the normal preview before anything is written.",
+    body: `
+      <div class="row">
+        <label>JSON</label>
+        <textarea name="json" required placeholder='{"format": "prompt-tree-template/1", ...}' style="min-height:220px;font-family:var(--mono);font-size:12px" data-paste-json></textarea>
+      </div>
+      <div class="helper">The payload is validated locally. Nothing touches your workspace until you confirm the import on the preview screen.</div>`,
+    primary: "Validate & preview", secondary: "Cancel",
+    onSubmit: async (data) => {
+      let parsed;
+      try { parsed = JSON.parse(data.json); }
+      catch { throw new Error("That isn't valid JSON. Check for stray commas or a truncated paste."); }
+      const template = validateTemplate(parsed);
+      // Give a small delay so the submit modal closes before the preview
+      // one opens — otherwise the second .modal backdrop stacks on top.
+      setTimeout(() => openPreview(template), 60);
+    },
+  });
+  setTimeout(() => document.querySelector("[data-paste-json]")?.focus(), 60);
 }

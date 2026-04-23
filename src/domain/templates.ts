@@ -38,6 +38,23 @@ export interface TemplateTestCase {
   expectedOutput?: string;
 }
 
+/** Provenance marker added when a template is produced by forking a
+ *  concrete prompt version (D3). Curated library entries omit this;
+ *  forks always carry it. Purely descriptive — the import path never
+ *  branches on it, so forks and curated templates walk the exact same
+ *  codepath once validated. */
+export interface TemplateSource {
+  projectSlug: string;
+  projectName?: string;
+  promptSlug: string;
+  promptName?: string;
+  versionId: string;
+  versionNumber: number;
+  contentHash?: string;
+  forkedAt: number;
+  forkedBy?: string | null;
+}
+
 export interface PromptTemplate {
   format: "prompt-tree-template/1";
   id: string;
@@ -55,6 +72,7 @@ export interface PromptTemplate {
     variables?: TemplateVariable[];
   };
   suggestedTestCases?: TemplateTestCase[];
+  source?: TemplateSource;
 }
 
 export interface TemplateLibrary {
@@ -116,6 +134,11 @@ export function validateTemplate(raw: unknown): PromptTemplate {
     throw new ValidationError("Template suggestedTestCases must be an array");
   }
 
+  let source: TemplateSource | undefined;
+  if (raw.source !== undefined && raw.source !== null) {
+    source = validateSource(raw.source);
+  }
+
   return {
     format: TEMPLATE_FORMAT,
     id: raw.id,
@@ -133,6 +156,31 @@ export function validateTemplate(raw: unknown): PromptTemplate {
       ...(variables ? { variables } : {}),
     },
     ...(suggestedTestCases ? { suggestedTestCases } : {}),
+    ...(source ? { source } : {}),
+  };
+}
+
+function validateSource(raw: unknown): TemplateSource {
+  if (!isObj(raw)) throw new ValidationError("Template source is malformed");
+  if (!isNonEmptyStr(raw.projectSlug)) throw new ValidationError("Template source is missing projectSlug");
+  if (!isNonEmptyStr(raw.promptSlug))  throw new ValidationError("Template source is missing promptSlug");
+  if (!isNonEmptyStr(raw.versionId))   throw new ValidationError("Template source is missing versionId");
+  if (typeof raw.versionNumber !== "number" || !Number.isFinite(raw.versionNumber)) {
+    throw new ValidationError("Template source is missing versionNumber");
+  }
+  if (typeof raw.forkedAt !== "number" || !Number.isFinite(raw.forkedAt)) {
+    throw new ValidationError("Template source is missing forkedAt");
+  }
+  return {
+    projectSlug: raw.projectSlug,
+    promptSlug: raw.promptSlug,
+    versionId: raw.versionId,
+    versionNumber: raw.versionNumber,
+    forkedAt: raw.forkedAt,
+    ...(isStr(raw.projectName) ? { projectName: raw.projectName } : {}),
+    ...(isStr(raw.promptName)  ? { promptName: raw.promptName }   : {}),
+    ...(isStr(raw.contentHash) ? { contentHash: raw.contentHash } : {}),
+    ...((raw.forkedBy === null || isStr(raw.forkedBy)) ? { forkedBy: raw.forkedBy as string | null } : {}),
   };
 }
 
@@ -186,6 +234,78 @@ export function validateLibrary(raw: unknown): TemplateLibrary {
     generatedAt: raw.generatedAt,
     ...(isStr(raw.version) ? { version: raw.version } : {}),
     templates,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Forking — D3: produce a portable template from a concrete prompt version.
+// The result is a `prompt-tree-template/1` payload with a `source` block,
+// so the consumer path stays identical: validateTemplate →
+// instantiateTemplate → createPrompt. No new envelope, no new importer.
+// ---------------------------------------------------------------------------
+
+interface ForkProjectLike {
+  slug: string;
+  name: string;
+}
+
+interface ForkPromptLike {
+  slug: string;
+  name: string;
+  description?: string;
+  purpose?: string;
+  readme?: string;
+}
+
+interface ForkVersionLike {
+  id: string;
+  number: number;
+  title: string;
+  body: string;
+  messages?: TemplateMessage[] | null;
+  variables?: TemplateVariable[];
+  contentHash?: string;
+  createdBy?: string | null;
+}
+
+export function packFork(args: {
+  project: ForkProjectLike;
+  prompt: ForkPromptLike;
+  version: ForkVersionLike;
+  now?: number;
+  category?: string;
+}): PromptTemplate {
+  const { project, prompt, version, now = Date.now(), category = "forks" } = args;
+  const id = `fork_${project.slug}_${prompt.slug}_v${version.number}_${now.toString(36)}`;
+  const description = prompt.description?.trim()
+    || prompt.purpose?.trim()
+    || `Fork of ${prompt.name} v${version.number} from ${project.name}.`;
+  return {
+    format: TEMPLATE_FORMAT,
+    id,
+    name: prompt.name,
+    description,
+    category,
+    tags: ["fork", project.slug],
+    prompt: {
+      title: version.title,
+      body: version.body,
+      ...(prompt.purpose ? { purpose: prompt.purpose } : {}),
+      ...(prompt.readme  ? { readme:  prompt.readme  } : {}),
+      messages: version.messages ?? null,
+      ...(version.variables ? { variables: version.variables } : {}),
+    },
+    source: {
+      projectSlug: project.slug,
+      projectName: project.name,
+      promptSlug: prompt.slug,
+      promptName: prompt.name,
+      versionId: version.id,
+      versionNumber: version.number,
+      ...(version.contentHash ? { contentHash: version.contentHash } : {}),
+      forkedAt: now,
+      ...(version.createdBy !== undefined ? { forkedBy: version.createdBy ?? null } : {}),
+    },
   };
 }
 

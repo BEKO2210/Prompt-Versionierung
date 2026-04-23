@@ -17,6 +17,7 @@ import {
   downloadJSON, copyJSON, fileNameForRun, fileNameForRunsBundle,
 } from "../runFormat.js";
 import { packShare, buildShareUrl } from "../share.js";
+import { packFork, fileNameForFork } from "../templates.js";
 
 // --- entry points ---
 export function renderPromptView(route) {
@@ -278,6 +279,7 @@ function renderMainHead({ project, prompt, version }) {
         <button class="btn ghost-accent" data-act="refine">${icon("spark", { size: 13 })} Refine</button>
         <button class="btn" data-act="compare">${icon("compare", { size: 13 })} Compare</button>
         <button class="btn" data-act="share">${icon("upload", { size: 13 })} Share</button>
+        <button class="btn" data-act="copy-json">${icon("download", { size: 13 })} Copy JSON</button>
         <button class="btn accent" data-act="promote">${icon("crown", { size: 13 })} Promote</button>
       </div>
     </div>
@@ -938,6 +940,7 @@ export function bindPromptView(root, route) {
   root.querySelector('[data-act="compare"]')?.addEventListener("click", () =>
     navigate(`/p/${ctx.project.slug}/p/${ctx.prompt.slug}/compare`, { b: ctx.version.id }));
   root.querySelector('[data-act="share"]')?.addEventListener("click", () => openShareModal(ctx));
+  root.querySelector('.main-head [data-act="copy-json"]')?.addEventListener("click", () => openCopyJsonModal(ctx));
   root.querySelector('[data-act="promote"]')?.addEventListener("click", () => openPromoteModal(ctx));
 
   // --- notes tab quick add ---
@@ -1484,6 +1487,61 @@ async function openShareModal({ project, prompt, version }) {
   setTimeout(() => {
     const ta = document.querySelector("[data-share-url]");
     if (ta) { ta.focus(); ta.select(); }
+  }, 50);
+}
+
+// --- Copy-JSON (D3 fork-to-clipboard): produces a portable
+// prompt-tree-template/1 payload with a `source` provenance block. The
+// same payload re-imports cleanly through the templates library, so a
+// fork and a curated starter walk the exact same consumer path. ---
+function openCopyJsonModal({ project, prompt, version }) {
+  let payload, err;
+  try {
+    payload = packFork({ project, prompt, version });
+  } catch (e) {
+    err = e?.message || String(e);
+  }
+  const json = payload ? JSON.stringify(payload, null, 2) : "";
+  const sizeKb = json ? (new TextEncoder().encode(json).byteLength / 1024).toFixed(1) : "0";
+  modal({
+    title: "Copy prompt as portable JSON",
+    sub: "prompt-tree-template/1 envelope with a source provenance block. Paste into another Prompt Tree workspace to re-import.",
+    body: err
+      ? `<div class="modal-error" style="display:block">${escapeHtml(err)}</div>`
+      : `
+        <div class="row">
+          <label>JSON payload</label>
+          <textarea readonly style="min-height:220px;font-family:var(--mono);font-size:12px" data-fork-json>${escapeHtml(json)}</textarea>
+        </div>
+        <div class="kv" style="margin-top:8px">
+          <div class="row"><div class="k">Source</div><div class="v">${escapeHtml(project.name)} / ${escapeHtml(prompt.name)} · v${version.number}</div></div>
+          <div class="row"><div class="k">Hash</div><div class="v mono">${escapeHtml((version.contentHash || "").slice(0, 7))}</div></div>
+          <div class="row"><div class="k">Size</div><div class="v">${sizeKb} KB · ${json.length.toLocaleString()} chars</div></div>
+        </div>
+        <div class="actions" style="margin-top:8px;justify-content:flex-end;display:flex;gap:8px">
+          <button type="button" class="btn" data-act="fork-download">${icon("download", { size: 13 })} Download .json</button>
+        </div>
+        <div class="helper">Forks never carry runs, proposals, decisions, or API keys — just the version's content, variables, and README with provenance.</div>`,
+    primary: "Copy JSON", secondary: "Close",
+    onSubmit: async () => {
+      if (!json) return;
+      try {
+        await navigator.clipboard.writeText(json);
+        toast("Copied portable JSON to clipboard");
+      } catch {
+        toast("Copy failed — select the textarea manually");
+      }
+    },
+  });
+  setTimeout(() => {
+    const ta = document.querySelector("[data-fork-json]");
+    if (ta) { ta.focus(); ta.select(); }
+    const dl = document.querySelector('[data-act="fork-download"]');
+    dl?.addEventListener("click", () => {
+      if (!payload) return;
+      downloadJSON(fileNameForFork(payload), payload);
+      toast("Downloaded fork JSON");
+    });
   }, 50);
 }
 

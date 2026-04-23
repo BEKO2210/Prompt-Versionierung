@@ -228,6 +228,29 @@ Perfect for diff vs baseline regressions.
 
 ---
 
+## Copy as portable JSON — forks
+
+The **Copy JSON** button on the prompt action bar produces a
+\`prompt-tree-template/1\` payload — the same shape as the curated
+library entries — with a \`source\` provenance block that names the
+origin project, prompt, version, content hash, and timestamp. Use it
+to:
+
+- archive a version of a prompt outside this browser,
+- mail a single prompt to a teammate,
+- seed a starter template in another Prompt Tree workspace.
+
+The paired action on **Templates → Import JSON** accepts the same
+payload. Curated starter, hand-edited template, or a fork from
+somewhere else — all three route into the exact same preview and
+Import flow. One envelope, one validator, one importer.
+
+What a fork carries: body, variables, messages, README, purpose,
+provenance. What it never carries: runs, proposals, decisions,
+activity, member list, API keys.
+
+---
+
 ## Template library
 
 The workspace topbar has a **Templates** link. It opens a curated

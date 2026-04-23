@@ -58,6 +58,11 @@ export function validateTemplate(raw) {
     throw new Error("Template suggestedTestCases must be an array");
   }
 
+  let source;
+  if (raw.source !== undefined && raw.source !== null) {
+    source = validateSource(raw.source);
+  }
+
   return {
     format: TEMPLATE_FORMAT,
     id: raw.id,
@@ -75,6 +80,31 @@ export function validateTemplate(raw) {
       ...(variables ? { variables } : {}),
     },
     ...(suggestedTestCases ? { suggestedTestCases } : {}),
+    ...(source ? { source } : {}),
+  };
+}
+
+function validateSource(raw) {
+  if (!isObj(raw)) throw new Error("Template source is malformed");
+  if (!isNonEmptyStr(raw.projectSlug)) throw new Error("Template source is missing projectSlug");
+  if (!isNonEmptyStr(raw.promptSlug))  throw new Error("Template source is missing promptSlug");
+  if (!isNonEmptyStr(raw.versionId))   throw new Error("Template source is missing versionId");
+  if (typeof raw.versionNumber !== "number" || !Number.isFinite(raw.versionNumber)) {
+    throw new Error("Template source is missing versionNumber");
+  }
+  if (typeof raw.forkedAt !== "number" || !Number.isFinite(raw.forkedAt)) {
+    throw new Error("Template source is missing forkedAt");
+  }
+  return {
+    projectSlug: raw.projectSlug,
+    promptSlug: raw.promptSlug,
+    versionId: raw.versionId,
+    versionNumber: raw.versionNumber,
+    forkedAt: raw.forkedAt,
+    ...(isStr(raw.projectName) ? { projectName: raw.projectName } : {}),
+    ...(isStr(raw.promptName)  ? { promptName: raw.promptName }   : {}),
+    ...(isStr(raw.contentHash) ? { contentHash: raw.contentHash } : {}),
+    ...((raw.forkedBy === null || isStr(raw.forkedBy)) ? { forkedBy: raw.forkedBy } : {}),
   };
 }
 
@@ -134,6 +164,53 @@ export async function loadLibrary({ force = false } = {}) {
   const raw = await res.json();
   _cache = validateLibrary(raw);
   return _cache;
+}
+
+// ---------------------------------------------------------------------------
+// Forking — D3. Produce a portable `prompt-tree-template/1` payload from a
+// concrete prompt version. Mirrors src/domain/templates.ts `packFork`. The
+// result passes validateTemplate and instantiateTemplate unchanged, so
+// import stays a single path.
+// ---------------------------------------------------------------------------
+export function packFork({ project, prompt, version, now = Date.now(), category = "forks" } = {}) {
+  const id = `fork_${project.slug}_${prompt.slug}_v${version.number}_${now.toString(36)}`;
+  const description = (prompt.description || "").trim()
+    || (prompt.purpose || "").trim()
+    || `Fork of ${prompt.name} v${version.number} from ${project.name}.`;
+  return {
+    format: TEMPLATE_FORMAT,
+    id,
+    name: prompt.name,
+    description,
+    category,
+    tags: ["fork", project.slug],
+    prompt: {
+      title: version.title,
+      body: version.body,
+      ...(prompt.purpose ? { purpose: prompt.purpose } : {}),
+      ...(prompt.readme  ? { readme:  prompt.readme  } : {}),
+      messages: version.messages ?? null,
+      ...(version.variables ? { variables: version.variables } : {}),
+    },
+    source: {
+      projectSlug: project.slug,
+      projectName: project.name,
+      promptSlug: prompt.slug,
+      promptName: prompt.name,
+      versionId: version.id,
+      versionNumber: version.number,
+      ...(version.contentHash ? { contentHash: version.contentHash } : {}),
+      forkedAt: now,
+      ...(version.createdBy !== undefined ? { forkedBy: version.createdBy ?? null } : {}),
+    },
+  };
+}
+
+/** File name used by Download — same shape the Runs tab uses. */
+export function fileNameForFork(template) {
+  const src = template.source || {};
+  const slug = (src.promptSlug || template.id).replace(/[^a-z0-9-]/gi, "-");
+  return `prompttree-fork-${slug}-v${src.versionNumber ?? 1}.json`;
 }
 
 // ---------------------------------------------------------------------------

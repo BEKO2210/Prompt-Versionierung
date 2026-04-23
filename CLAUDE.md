@@ -116,6 +116,17 @@ prompts. Where competitors collect prompts, we **graduate** them.
   the slice as untrusted input (validated by `validateShare`, every
   string escaped at the boundary). The workspace state is never
   mutated — nothing to import yet; that lands with D3.
+- **D3: Fork-to-clipboard** — "Copy JSON" button on the prompt action
+  bar produces a portable `prompt-tree-template/1` payload with an
+  optional `source` provenance block (project/prompt slug, version id +
+  number, content hash, forkedAt timestamp). The same payload re-imports
+  cleanly: `/templates` gained an "Import JSON" topbar button that
+  accepts a pasted payload, validates it through the existing
+  `validateTemplate`, and routes straight into the library preview →
+  Import → new prompt. One envelope, one validator, one service call —
+  curated starters and forks walk the exact same consumer path. Forks
+  carry body / variables / README / purpose + provenance; never runs,
+  proposals, decisions, activity, or keys.
 - **D2: Prompt template library** — six curated starter packs
   (`ticket-classifier`, `structured-extractor`, `chain-of-thought`,
   `code-reviewer`, `bullet-summarizer`, `rubric-judge`) ship under
@@ -156,7 +167,7 @@ Contract: nothing in this app is a one-way door except the explicit
 
 | Surface | Count / result |
 |---|---|
-| **Vitest pure-domain cases** | 144 passing — `history.test.ts` (8), `approval.test.ts` (13), `stats.test.ts` (14), `share.test.ts` (16), `templates.test.ts` (19), plus 74 foundational cases (rendering, diff, lineage, promotion, versioning, branching, hashing, status, analyzers, evaluators). |
+| **Vitest pure-domain cases** | 151 passing — `history.test.ts` (8), `approval.test.ts` (13), `stats.test.ts` (14), `share.test.ts` (16), `templates.test.ts` (26, incl. `packFork` + `source` validation), plus 74 foundational cases (rendering, diff, lineage, promotion, versioning, branching, hashing, status, analyzers, evaluators). |
 | **Headless walkthrough** | `scripts/ui-walkthrough.js` — 30 reference screenshots, 0 console errors enforced before every push. |
 | **Responsive audit** | `scripts/audit.js` — 23 routes × 3 viewports (1400 / 820 / 390). 0 horizontal scroll, 0 off-screen buttons, 0 tap-target violations (WCAG 2.5.8 AA). |
 | **Batch smoke** | `scripts/batch-smoke.js` — presses `B`, asserts run rows appear. |
@@ -164,6 +175,7 @@ Contract: nothing in this app is a one-way door except the explicit
 | **Reversibility smoke** | `scripts/reversibility-smoke.js` — archive / delete / archive-branch → Ctrl+Z → state restored; also asserts the "Nothing to undo" guard. |
 | **Share smoke** | `scripts/share-smoke.js` — Share button → capture URL → open in fresh context → asserts same title + body + read-only badge; tampered payload surfaces a friendly error. |
 | **Templates smoke** | `scripts/templates-smoke.js` — `/templates` grid paints ≥ 3 cards → preview modal shows body + Import CTA → import creates a new prompt in the demo project with the template body preserved → Ctrl+Z unwinds the import atomically. |
+| **Fork smoke** | `scripts/fork-smoke.js` — Copy-JSON modal emits a valid `prompt-tree-template/1` with a `source` block → paste into `/templates` → preview shows the same body → import creates a new prompt with byte-identical body → Ctrl+Z unwinds. Also asserts malformed paste surfaces a friendly inline error. |
 
 ### 2.7 Security status (browser-only runtime)
 
@@ -222,7 +234,7 @@ sub-bullets in place. Done items move to §2.
 |---|---|---|
 | D1 | Public read-only share links (encode minimum prompt slice into URL hash) | **done** | pure `packShare` / `validateShare` + `ancestorChain` in `src/domain/share.ts` (mirrored in `webapp/js/share.js`); codec layer does base64url + gzip via `CompressionStream` with an `algo.payload` prefix (gz/raw) for forward-compat and a raw fallback when the browser lacks gzip. Share button in the action bar opens a modal with the URL, Includes / Target / Length breakdown, Copy-to-clipboard + open-preview action. New `#/share?d=…` route renders a dedicated read-only view (`webapp/js/views/share.js`) with breadcrumb → project/prompt lockup, "read-only share" badge, version chain (clickable to re-target in memory), body, metadata, README; the workspace state is never touched. 16 new vitest cases cover pack/round-trip/validate rejection paths; `scripts/share-smoke.js` verifies the full produce → consume → tamper-safety flow end-to-end. |
 | D2 | Prompt template library (curated starter packs, importable) | **done** | six curated starters (ticket-classifier, structured-extractor, chain-of-thought, code-reviewer, bullet-summarizer, rubric-judge) in `webapp/data/templates.json`; pure `validateTemplate` / `validateLibrary` / `instantiateTemplate` / `groupByCategory` in `src/domain/templates.ts` mirrored in `webapp/js/templates.js`; `services.createPromptFromTemplate` writes prompt + main branch + v1 + optional README in a *single* `mutate()` so Ctrl+Z unwinds the whole import atomically; new `#/templates` route + workspace topbar entry open a grid grouped by category → preview modal (body / variables / suggested tests / project picker / name override) → Import redirects to the new prompt. 19 new vitest cases (incl. bundle validation); `scripts/templates-smoke.js` covers library paint, preview, import, and undo. Also bumped `.modal { max-height: 80vh; overflow-y: auto }` so long previews stay in reach. |
-| D3 | Fork-to-clipboard: one click copies a prompt as a portable JSON | |
+| D3 | Fork-to-clipboard: one click copies a prompt as a portable JSON | **done** | pure `packFork` in `src/domain/templates.ts` mirrored in `webapp/js/templates.js` produces a `prompt-tree-template/1` payload with an optional `source` provenance block (project/prompt slug, version id + number, content hash, forkedAt, forkedBy); `validateTemplate` gained a matching `validateSource` guard. "Copy JSON" button on the prompt action bar opens a modal with preview / copy-to-clipboard / download-as-file / provenance summary; pairs cleanly with D1 Share link in the same row. `/templates` gained an "Import JSON" topbar action that validates a pasted payload and routes into the normal library preview → Import → new prompt, so curated starters and forks walk the *exact same* consumer path. 7 new vitest cases (round-trip, leak guards, provenance validation, synthetic description fallback); `scripts/fork-smoke.js` covers Copy-JSON → paste → preview → import → Ctrl+Z, plus a malformed-paste guard. |
 
 ### 3.D Phase E — Brand & positioning
 

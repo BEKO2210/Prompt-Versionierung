@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   validateTemplate, validateLibrary, instantiateTemplate, groupByCategory,
+  packFork,
   PromptTemplate, TemplateLibrary,
 } from "../../src/domain/templates";
 import { ValidationError } from "../../src/domain/errors";
@@ -137,6 +138,95 @@ describe("groupByCategory", () => {
     const groups = groupByCategory([a, b, c]);
     expect(groups.map((g) => g.category)).toEqual(["classification", "extraction"]);
     expect(groups[0]!.templates.map((t) => t.id)).toEqual(["a", "c"]);
+  });
+});
+
+describe("packFork", () => {
+  const project = { slug: "demo", name: "Demo" };
+  const prompt = {
+    slug: "cls", name: "Classifier",
+    description: "Routes tickets.",
+    purpose: "Route support tickets to the right queue.",
+    readme: "## Contract\nReturn JSON.",
+  };
+  const version = {
+    id: "ver_abc", number: 4, title: "With format",
+    body: "Classify {{ticket}} as billing | account | other.",
+    messages: null,
+    variables: [{ name: "ticket", type: "string" as const, required: true }],
+    contentHash: "abcdef1234",
+    createdBy: "mem_alice",
+  };
+
+  it("produces a prompt-tree-template/1 payload that validates", () => {
+    const fork = packFork({ project, prompt, version, now: 100 });
+    const round = validateTemplate(JSON.parse(JSON.stringify(fork)));
+    expect(round.format).toBe("prompt-tree-template/1");
+    expect(round.prompt.body).toBe(version.body);
+    expect(round.prompt.variables?.[0]?.name).toBe("ticket");
+    expect(round.source?.versionId).toBe("ver_abc");
+    expect(round.source?.versionNumber).toBe(4);
+    expect(round.source?.projectSlug).toBe("demo");
+    expect(round.source?.contentHash).toBe("abcdef1234");
+    expect(round.source?.forkedAt).toBe(100);
+  });
+
+  it("never leaks runs, proposals or any extraneous fields", () => {
+    const fork = packFork({ project, prompt, version });
+    const json = JSON.stringify(fork);
+    // Anything the fork should explicitly NOT carry:
+    for (const forbidden of ["runs", "proposals", "decisions", "activities", "apiKey", "secrets"]) {
+      expect(json.toLowerCase()).not.toContain(forbidden.toLowerCase());
+    }
+  });
+
+  it("round-trips through instantiateTemplate producing createPrompt args", () => {
+    const fork = packFork({ project, prompt, version });
+    const args = instantiateTemplate(validateTemplate(JSON.parse(JSON.stringify(fork))));
+    expect(args.name).toBe("Classifier");
+    expect(args.initialVersion.body).toBe(version.body);
+    expect(args.readme).toBe("## Contract\nReturn JSON.");
+    expect(args.initialVersion.variables).toEqual(version.variables);
+  });
+
+  it("falls back to a synthetic description when none of description/purpose are set", () => {
+    const bare = { slug: "p", name: "P" };
+    const fork = packFork({ project, prompt: bare, version });
+    expect(fork.description).toContain("Fork of P v4");
+    expect(fork.description).toContain("Demo");
+  });
+});
+
+describe("validateTemplate — source provenance", () => {
+  const tplWith = (source: unknown): unknown => ({
+    format: "prompt-tree-template/1",
+    id: "x", name: "X", description: "d", category: "c", tags: [],
+    prompt: { title: "t", body: "b" },
+    source,
+  });
+
+  it("accepts a well-formed source block", () => {
+    const t = validateTemplate(tplWith({
+      projectSlug: "demo", promptSlug: "p", versionId: "v", versionNumber: 1, forkedAt: 1,
+    }));
+    expect(t.source?.projectSlug).toBe("demo");
+  });
+
+  it("rejects missing required source fields", () => {
+    expect(() => validateTemplate(tplWith({ promptSlug: "p", versionId: "v", versionNumber: 1, forkedAt: 1 }))).toThrow(/projectSlug/);
+    expect(() => validateTemplate(tplWith({ projectSlug: "d", versionId: "v", versionNumber: 1, forkedAt: 1 }))).toThrow(/promptSlug/);
+    expect(() => validateTemplate(tplWith({ projectSlug: "d", promptSlug: "p", versionNumber: 1, forkedAt: 1 }))).toThrow(/versionId/);
+    expect(() => validateTemplate(tplWith({ projectSlug: "d", promptSlug: "p", versionId: "v", forkedAt: 1 }))).toThrow(/versionNumber/);
+    expect(() => validateTemplate(tplWith({ projectSlug: "d", promptSlug: "p", versionId: "v", versionNumber: 1 }))).toThrow(/forkedAt/);
+  });
+
+  it("tolerates a missing source (curated templates don't carry one)", () => {
+    const t = validateTemplate({
+      format: "prompt-tree-template/1",
+      id: "x", name: "X", description: "d", category: "c", tags: [],
+      prompt: { title: "t", body: "b" },
+    });
+    expect(t.source).toBeUndefined();
   });
 });
 
