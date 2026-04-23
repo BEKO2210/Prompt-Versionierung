@@ -507,4 +507,151 @@ brand mark, GitHub Pages deploy.
 
 ---
 
-**→ Teil 3c fertig. Sag „weiter" für 3d (die ausführliche „GitHub for Prompts"-Vision mit allen Phase-F-Items).**
+## The long vision — GitHub for Prompts
+
+The browser-only app is the **wedge**: a complete, offline-first product
+for a solo prompt engineer or a tight team that can pass a JSON file
+around. Phase F adds the collaboration + discovery primitives that turn
+a tool into a **shared platform** — without breaking any of the
+guarantees that make Prompt Tree worth using.
+
+### The contract
+
+Three rules govern every Phase F decision:
+
+1. **Offline-first stays the default.** Sign-up, login, push, pull —
+   all opt-in. Every feature shipped today keeps working without an
+   account.
+2. **No API keys on the server.** BYOK-in-browser is the *primary*
+   path. Server-side run executors (F9) are an opt-in team convenience,
+   not a replacement.
+3. **The version DAG is append-only.** Conflicts can only happen on
+   branch pointers — same as git. Sync is therefore a much smaller
+   problem than "merge two divergent histories".
+
+### F1 — Backend API
+
+A Next.js Route Handlers + Prisma/Postgres surface that mirrors the
+webapp's service layer **one-for-one**. Every `webapp/js/services.js`
+function gets a `POST /api/<verb>` twin with the same arguments and
+return shape. The browser-only app then becomes one of two clients of
+the same service contract — the other being any future mobile app, CLI,
+or third-party integration.
+
+### F2 — Auth: email + OAuth (GitHub, Google)
+
+Per-user avatar + display name replaces the local `currentActor`.
+Sessions are HTTP-only cookies; the JS surface never sees the token.
+Email-link sign-in for the lowest-friction path; GitHub / Google for the
+people who already have those accounts open in another tab anyway.
+
+### F3 — Organisations / teams with role-based membership
+
+`owner / maintainer / reviewer / viewer`, scoped per project. Owners
+manage members and threshold settings; maintainers can promote and
+merge; reviewers can approve and comment; viewers can only read. The
+existing `members[]` shape on every project upgrades cleanly — same
+field, just resolved against real users.
+
+### F4 — Remote repositories: push / pull
+
+`prompt-tree push` uploads the local workspace's deltas since the last
+sync; `prompt-tree pull` downloads the server's. Because every entity
+has a content-addressed id (`contentHash` on versions, opaque ids on
+everything else), the server can dedupe at the row level. Conflicts on
+branch pointers surface as a UI choice — exactly how `git push
+--force-with-lease` already feels.
+
+### F5 — Public profiles + public prompts
+
+`prompttree.com/<user>/<project>` is a read-only view of the very same
+UI you use locally. Same components, same diffs, same Trend chart —
+just no edit affordances and no API-key field. Bookmarkable, shareable,
+indexable.
+
+### F6 — Forking across workspaces
+
+One click on a public project (or a single prompt slice) copies it into
+your own workspace, with a `forked_from` lineage edge that **crosses
+project boundaries**. Suddenly `branch.dev/marketing-tone` can fork
+`anthropic-eng/customer-support`, iterate locally, and open a proposal
+back upstream. Same pattern as GitHub forks — the lineage edge keeps
+the link visible forever.
+
+### F7 — Issues on prompts
+
+Bug reports, feature requests, design discussions. They reuse the same
+thread primitive the proposals already use (`comments[]` with
+markdown). Issues live next to proposals in the prompt's left rail; the
+distinction is intent — proposals come with a diff, issues come with a
+question.
+
+### F8 — Server-side run cache
+
+The same `(versionId, modelProfileId, testCaseId, seed, temperature)`
+tuple is identical across the world. The server caches every successful
+run and returns it on hit — your A/B test that reruns 30 cells when you
+flip a model profile costs **$0** the second time, and is sharable
+across the team. Cache is opt-in per project to keep the no-server
+path's behaviour identical.
+
+### F9 — Pluggable run executors
+
+Browser-only stays the default. Teams can register a server-side
+executor that proxies to their own quota / rate-limited API keys —
+useful for "no team member should have to paste a $100K-quota key into
+their browser" scenarios. The executor speaks the same adapter contract
+as the in-browser one (`webapp/js/adapters/models/types.js`) so the
+service layer doesn't change.
+
+### F10 — Search across public prompts
+
+Title, body, README, tags, and (later) embedding-based semantic search.
+Project-scoped FTS already exists locally (`webapp/js/views/search.js`)
+on a SQL-LIKE backend; F10 swaps that for FTS5 / pgvector at server
+scope.
+
+### F11 — Stars, follows, activity feed per user
+
+The social surface. Star a project to bookmark it; follow a user to
+get their public activity in your feed. The activity primitive already
+exists (`pushActivity`); F11 adds a per-user inbox view that aggregates
+across followed projects.
+
+### F12 — Webhooks
+
+Outbound `POST` on `version_created`, `proposal_opened`, `proposal_merged`,
+`release_published`, `proposal_approved`. Wire any of these into CI/CD
+to auto-deploy a new prompt version when its proposal merges. Same
+shape as GitHub's webhook payloads — predictable, signed, retried.
+
+### F13 — OAuth app + REST API (read-only v1)
+
+Third parties can build bots, linters, dashboards. v1 is read-only on
+public data: list / get / search across projects, prompts, versions,
+proposals, runs, releases. Write access (open proposal, post comment,
+approve) lands in v2 with proper scope-based OAuth.
+
+---
+
+### What we will *not* do at Phase F
+
+- **Store API keys on the server.** Even encrypted. Even "just for the
+  team executor". The keys-in-browser primitive is a **deliberate**
+  product decision — it's what lets Prompt Tree be honest about who
+  pays for tokens and who reads them.
+- **Make the backend mandatory.** If you can't sign up, you should still
+  be able to use 100 % of the offline product.
+- **Lock the export format.** `prompt-tree-run/1` and the workspace
+  export shape are versioned and stable — anyone can write a competing
+  client that reads / writes them.
+
+> **Why this works.** The browser-only product proves there's value in
+> the primitives — diffs, lineage, evaluations, proposals, governance.
+> The backend just adds **distribution and discovery** on top of those
+> primitives. Same as how `git` was a fine local VCS for years before
+> GitHub turned it into an industry.
+
+---
+
+**→ Teil 3d fertig. Sag „weiter" für 3e (Development-Befehle, CI, Contributing, Non-Goals, Lizenz — der Schluss).**
