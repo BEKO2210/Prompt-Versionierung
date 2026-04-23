@@ -143,6 +143,39 @@ prompts. Where competitors collect prompts, we **graduate** them.
 
 ### 2.5 Phase E — Brand & positioning *(in progress)*
 
+- **Model catalog + OpenAI max_completion_tokens fix** — user hit
+  `OpenAI rejected the request (400). Unsupported parameter: 'max_tokens'
+  is not supported with this model. Use 'max_completion_tokens' instead.`
+  on a custom-typed GPT-5 id. Root cause: the old adapter only routed
+  reasoning models (o1/o3/o4) to `max_completion_tokens` and sent
+  `max_tokens` everywhere else — but gpt-4.1 / gpt-5 reject it. New
+  pure module `src/domain/modelCatalog.ts` (mirrored in
+  `webapp/js/adapters/models/catalog.js`) is the single source of
+  truth: per-provider curated lists + a deterministic
+  `openaiParamShape(modelId)` decision table. Catalog-known legacy
+  models (gpt-3.5, gpt-4, gpt-4o, gpt-4o-mini) stay on `max_tokens`;
+  every other id — known or unknown — defaults to the modern key,
+  which OpenAI accepts on legacy models too. Adapter now calls the
+  shared routing so a typed-by-hand model id can't trip the 400 again.
+  13 new vitest cases lock the routing; every current model catalogue
+  entry is covered.
+- **Models view upgrade** — no more "type your model id into a text
+  box and hope". The New-profile modal now offers a provider dropdown
+  (mock, OpenAI, Anthropic, Google Gemini — Gemini was missing before)
+  and a model dropdown populated from the catalog, with a "Custom —
+  type a model id…" escape hatch for dated snapshots. Provider pick
+  triggers model refill + temperature suggestion (1 for reasoning
+  models, 0.7 otherwise); the auto-suggested profile name updates
+  until the user types their own. A per-row **trash** button deletes a
+  profile with an Undo toast; **Delete all** wipes the list in a
+  single `mutate()` (Ctrl+Z unwinds everything at once); **Seed
+  defaults** creates one profile per provider where a key is
+  configured (+ the mock fallback) in one atomic write — "click once,
+  have the defaults that work today". `scripts/models-smoke.js`
+  covers: provider + model dropdowns populated from the catalog,
+  create with catalog picks writes the right `{provider, modelId}`,
+  per-row delete + Ctrl+Z restore, seed-defaults + atomic undo.
+
 - **E3: Social card SVG generator per prompt** — a new *Social card*
   button on the prompt action bar packs project / prompt / version
   metadata into a 1200 × 630 OpenGraph-aspect SVG card with the brand
@@ -226,7 +259,7 @@ Contract: nothing in this app is a one-way door except the explicit
 
 | Surface | Count / result |
 |---|---|
-| **Vitest pure-domain cases** | 164 passing — `history.test.ts` (8), `approval.test.ts` (13), `stats.test.ts` (14), `share.test.ts` (16), `templates.test.ts` (26, incl. `packFork` + `source` validation), `socialCard.test.ts` (13), plus 74 foundational cases (rendering, diff, lineage, promotion, versioning, branching, hashing, status, analyzers, evaluators). |
+| **Vitest pure-domain cases** | 177 passing — `history.test.ts` (8), `approval.test.ts` (13), `stats.test.ts` (14), `share.test.ts` (16), `templates.test.ts` (26), `socialCard.test.ts` (13), `modelCatalog.test.ts` (13), plus 74 foundational cases (rendering, diff, lineage, promotion, versioning, branching, hashing, status, analyzers, evaluators). |
 | **Headless walkthrough** | `scripts/ui-walkthrough.js` — 30 reference screenshots, 0 console errors enforced before every push. |
 | **Responsive audit** | `scripts/audit.js` — 23 routes × 3 viewports (1400 / 820 / 390). 0 horizontal scroll, 0 off-screen buttons, 0 tap-target violations (WCAG 2.5.8 AA). |
 | **Batch smoke** | `scripts/batch-smoke.js` — presses `B`, asserts run rows appear. |
@@ -236,6 +269,7 @@ Contract: nothing in this app is a one-way door except the explicit
 | **Templates smoke** | `scripts/templates-smoke.js` — `/templates` grid paints ≥ 3 cards → preview modal shows body + Import CTA → import creates a new prompt in the demo project with the template body preserved → Ctrl+Z unwinds the import atomically. |
 | **Fork smoke** | `scripts/fork-smoke.js` — Copy-JSON modal emits a valid `prompt-tree-template/1` with a `source` block → paste into `/templates` → preview shows the same body → import creates a new prompt with byte-identical body → Ctrl+Z unwinds. Also asserts malformed paste surfaces a friendly inline error. |
 | **Social-card smoke** | `scripts/social-card-smoke.js` — modal opens with a 1200 × 630 inline SVG preview carrying the project / prompt / version metadata; theme toggle dark ↔ light actually repaints the preview; Download .svg fires a real download event with a `prompttree-social-*.svg` filename. |
+| **Models smoke** | `scripts/models-smoke.js` — provider dropdown lists all four providers (Gemini included, previously missing); model dropdown pulls from the catalog + exposes a Custom-id escape hatch; creating a profile with catalog picks stores the right `{provider, modelId}`; per-row trash deletes and Ctrl+Z restores; Delete-all wipes and Seed-defaults atomically creates one profile per available provider, Ctrl+Z unwinds both in one step. |
 | **Landing smoke** | `scripts/landing-smoke.js` — 7 tests. Empty workspace paints hero / 3 pillars / 2 feature columns with `mark-hero.svg` + 3 `.reveal-word` spans; `prefers-reduced-motion` swaps to static mark + instant reveal; *Explore with the demo* loads the real seed and paints the grid; *Create your first project* opens the New-project modal; landing topbar never carries the populated action row; fresh visit with a real seeded demo shows the landing first with the state-aware *Go to your workspace* CTA (not the demo reset — that would wipe the user's data); Go-to-workspace keeps state intact, sets the marker, paints the grid; reload skips the landing; **Welcome** topbar clears the marker and re-reveals the landing; broken `seed.json` surfaces a *Demo failed* toast, leaves the visitor on the landing, does NOT set the marker, and re-enables the button for retry. |
 
 ### 2.8 Security status (browser-only runtime)

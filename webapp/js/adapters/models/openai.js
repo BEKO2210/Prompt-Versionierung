@@ -9,15 +9,13 @@
 
 import { getApiKey } from "../../secrets.js";
 import { ProviderError, MissingKeyError } from "./types.js";
+import { openaiParamShape } from "./catalog.js";
 
 const ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_MODEL = "gpt-4o-mini";
 
-// o-series reasoning models (o1, o3, o4) do not accept the legacy
-// `max_tokens` parameter; they take `max_completion_tokens` instead.
-// They also currently ignore `temperature` (always = 1) and may not
-// accept `system` role — the safer transformation is to fold any
-// system content into the first user turn as a header.
+// Reasoning models (o1, o3, o4) fold their system turn into the first
+// user turn rather than using a dedicated system role.
 function isReasoningModel(modelId) {
   const m = (modelId || "").toLowerCase();
   return m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4");
@@ -59,17 +57,14 @@ function shape(req) {
     messages.push({ role: "user", content: "" });
   }
 
+  const modelId = req.modelId || DEFAULT_MODEL;
+  const { maxTokensField, supportsTemperature } = openaiParamShape(modelId);
   const body = {
-    model: req.modelId || DEFAULT_MODEL,
+    model: modelId,
     messages,
+    [maxTokensField]: req.maxTokens ?? 1024,
   };
-  if (reasoning) {
-    body.max_completion_tokens = req.maxTokens ?? 1024;
-    // omit `temperature` — o-series ignores it
-  } else {
-    body.max_tokens = req.maxTokens ?? 1024;
-    body.temperature = req.temperature ?? 0.7;
-  }
+  if (supportsTemperature) body.temperature = req.temperature ?? 0.7;
   return body;
 }
 
