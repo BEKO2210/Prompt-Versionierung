@@ -252,6 +252,36 @@ wins regardless of the marker.
 
 ---
 
+## Model profiles
+
+The per-project **Models** page is the only place where a prompt gets
+wired to a provider + model. Each profile carries a name, a provider
+(mock / OpenAI / Anthropic / Google Gemini), a specific model id, a
+default temperature and a default max-tokens budget.
+
+**Seed defaults** creates the curated set in one click: a mock
+profile (always) plus one profile for every real provider where you
+already have an API key. **Delete all** (or the per-row trash icon)
+wipes profiles; Ctrl/⌘+Z undoes either action atomically.
+
+The New-profile modal offers dropdowns populated from a curated
+catalog — you don't have to remember the exact slug for
+\`gpt-5-mini\` or \`claude-opus-4-7\`. Dated snapshots and preview
+models that aren't in the catalog yet go through the **Custom** option
+at the bottom of the model dropdown.
+
+**About the parameter routing**: OpenAI's newer models (GPT-5,
+GPT-4.1, every reasoning model) reject the legacy \`max_tokens\`
+field with a 400. The adapter consults a pure decision table —
+catalog-known legacy models (GPT-4o, GPT-3.5) still use
+\`max_tokens\`; everything else, known or custom, uses the modern
+\`max_completion_tokens\` which works on every model. If you type a
+custom model id and the first run fails with a parameter error, the
+adapter has already done the right thing; check that the model id is
+spelled correctly in the OpenAI docs.
+
+---
+
 ## Social cards
 
 The **Social card** button on the prompt action bar produces a

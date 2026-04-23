@@ -649,6 +649,64 @@ export function createModelProfile({ projectId, name, provider = "mock", modelId
   });
   return id;
 }
+
+// Remove a single model profile. Runs that referenced it stay in the
+// audit trail — the profileId becomes a dangling reference, which the
+// UI handles by showing "deleted profile" in place of the name.
+// Goes through mutate() so Ctrl+Z unwinds the deletion.
+export function deleteModelProfile({ projectId, profileId }) {
+  mutate((s) => {
+    const p = findProject(s, projectId);
+    if (!p.modelProfiles) return;
+    p.modelProfiles = p.modelProfiles.filter((m) => m.id !== profileId);
+  });
+}
+
+// Wipe every model profile on a project in one Ctrl+Z-able step. Useful
+// when a user wants to re-seed the curated defaults from scratch.
+export function deleteAllModelProfiles({ projectId }) {
+  mutate((s) => {
+    const p = findProject(s, projectId);
+    p.modelProfiles = [];
+  });
+}
+
+// Seed the curated defaults for a project. Creates a mock profile (for
+// offline play) plus one profile for each real provider where the user
+// already has a key configured. Idempotent per profile name — skips any
+// profile that would collide with an existing one. Batched into a
+// single mutate() so Ctrl+Z unwinds the whole seeding atomically.
+// Returns the list of names actually created so the caller can toast a
+// helpful summary.
+export async function seedDefaultModelProfiles({ projectId }) {
+  const { MODEL_CATALOG } = await import("./adapters/models/catalog.js");
+  const { hasApiKey } = await import("./secrets.js");
+  // Resolve which providers are eligible BEFORE entering mutate(), since
+  // mutate() expects a pure sync callback.
+  const eligible = [];
+  for (const provider of MODEL_CATALOG) {
+    if (provider.requiresKey && !(await hasApiKey(provider.id))) continue;
+    const top = provider.models[0];
+    if (!top) continue;
+    eligible.push({ provider, top });
+  }
+  const created = [];
+  mutate((s) => {
+    const p = findProject(s, projectId);
+    p.modelProfiles = p.modelProfiles || [];
+    for (const { provider, top } of eligible) {
+      const name = `${provider.id}-default`;
+      if (p.modelProfiles.some((m) => m.name === name)) continue;
+      p.modelProfiles.push({
+        id: newId("mp"), name, provider: provider.id, modelId: top.id,
+        defaultTemperature: top.supportsTemperature === false ? 1 : 0.7,
+        defaultMaxTokens: 1024,
+      });
+      created.push(name);
+    }
+  });
+  return created;
+}
 export function createRubric({ projectId, name, description, criteria }) {
   let id;
   mutate((s) => {

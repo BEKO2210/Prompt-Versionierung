@@ -1,8 +1,9 @@
 // Datasets, models, rubrics — project-level "meta" pages sharing a layout.
 
-import { html, escapeHtml, icon, brandMark, modal, toast } from "../ui/components.js";
+import { html, escapeHtml, escapeAttr, icon, brandMark, modal, toast } from "../ui/components.js";
 import { getState, commit } from "../store.js";
 import * as services from "../services.js";
+import { MODEL_CATALOG, getProvider, defaultModelFor, findModel } from "../adapters/models/catalog.js";
 
 // Shared topbar
 function topbar(project, kind) {
@@ -109,51 +110,192 @@ export function renderModelsView(route) {
     <div class="main">
       <div class="main-head">
         <div><div class="eyebrow">Models</div><h1>${icon("model", { size: 16 })} Model profiles</h1>
-          <div class="subtitle">Named presets used by runs. The <code>mock</code> provider works offline.</div></div>
+          <div class="subtitle">Named presets used by runs. Pick a provider + model from the curated list, or type a custom id. The <code>mock</code> provider works offline without a key.</div></div>
         <div class="actions">
+          <button class="btn" data-act="seed-defaults">${icon("spark", { size: 13 })} Seed defaults</button>
+          ${profiles.length > 0 ? `<button class="btn" data-act="delete-all">${icon("trash", { size: 13 })} Delete all</button>` : ""}
           <button class="btn accent" data-act="new-profile">${icon("plus", { size: 13 })} New profile</button>
         </div>
       </div>
-      ${profiles.length === 0 ? `<div class="empty"><div class="sub">No profiles. Add one to enable runs.</div></div>`
+      ${profiles.length === 0 ? `
+        <div class="empty">
+          <div class="ttl">No profiles yet</div>
+          <div class="sub">Seed the curated defaults (one profile per provider where you have a key) or add one manually.</div>
+          <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
+            <button class="btn" data-act="seed-defaults">${icon("spark", { size: 13 })} Seed defaults</button>
+            <button class="btn accent" data-act="new-profile">${icon("plus", { size: 13 })} New profile</button>
+          </div>
+        </div>`
         : profiles.map((m) => `
-          <div class="form-card" style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
-            <span style="flex:1">
+          <div class="form-card" style="display:flex;align-items:center;gap:14px;margin-bottom:10px" data-profile-id="${escapeAttr(m.id)}">
+            <span style="flex:1;min-width:0">
               <strong>${escapeHtml(m.name)}</strong>
               <span style="color:var(--fg-muted);font-size:12px;margin-left:8px">${escapeHtml(m.provider)}:${escapeHtml(m.modelId)}</span>
             </span>
-            <span style="color:var(--fg-faint);font-size:11.5px">T=${m.defaultTemperature} · max=${m.defaultMaxTokens}</span>
+            <span style="color:var(--fg-faint);font-size:11.5px;white-space:nowrap">T=${m.defaultTemperature} · max=${m.defaultMaxTokens}</span>
+            <button type="button" class="btn sm" data-act="delete-profile" data-profile-id="${escapeAttr(m.id)}" title="Delete this profile">${icon("trash", { size: 12 })}</button>
           </div>`).join("")}
     </div>
   `;
+}
+
+// Produce the <option>-list HTML for a provider's known models, plus a
+// trailing "(custom)" sentinel that reveals a freeform input in the
+// modal. Keeping the list to known-good models avoids the "typed the
+// wrong slug" 400s a free-text field invited.
+function providerOptions(selectedProvider) {
+  return MODEL_CATALOG.map((p) =>
+    `<option value="${escapeAttr(p.id)}"${p.id === selectedProvider ? " selected" : ""}>${escapeHtml(p.label)}${p.requiresKey ? "" : " · no key"}</option>`
+  ).join("");
+}
+function modelOptions(providerId, selectedModelId) {
+  const prov = getProvider(providerId);
+  const known = (prov?.models || []).map((m) =>
+    `<option value="${escapeAttr(m.id)}"${m.id === selectedModelId ? " selected" : ""}>${escapeHtml(m.label)}${m.hint ? ` · ${escapeHtml(m.hint)}` : ""}</option>`
+  ).join("");
+  return `${known}<option value="__custom__">Custom — type a model id…</option>`;
 }
 
 export function bindModelsView(root, route) {
   const s = getState();
   const project = s.projects.find((p) => p.slug === route.path.projectSlug);
   if (!project) return;
+
   root.querySelector('[data-act="new-profile"]')?.addEventListener("click", () => {
+    const initialProvider = "openai";
+    const initialModel = defaultModelFor(initialProvider);
+    const initialModelId = initialModel?.id || "";
+    const suggestedTemperature = initialModel?.supportsTemperature === false ? 1 : 0.7;
+
     modal({
       title: "New model profile",
+      sub: "Pick a provider + one of the curated models. Temperature + max-token defaults are tuned for that model.",
       body: `
-        <div class="row"><label>Name <span class="req">*</span></label><input name="name" required placeholder="mock-default" /></div>
+        <div class="row"><label>Name <span class="req">*</span></label><input name="name" required placeholder="openai-default" /></div>
         <div class="row"><label>Provider</label>
-          <select name="provider">
-            <option value="mock">mock (no API key, offline)</option>
-            <option value="anthropic">anthropic</option>
-            <option value="openai">openai</option>
-            <option value="custom">custom</option>
-          </select></div>
-        <div class="row"><label>Model ID <span class="req">*</span></label><input name="modelId" required placeholder="claude-opus-4-7" /></div>
-        <div class="row"><label>Temperature</label><input name="defaultTemperature" type="number" step="0.1" value="0.7" /></div>
-        <div class="row"><label>Max tokens</label><input name="defaultMaxTokens" type="number" value="1024" /></div>`,
+          <select name="provider" data-provider-select>${providerOptions(initialProvider)}</select>
+        </div>
+        <div class="row"><label>Model</label>
+          <select name="modelPick" data-model-select>${modelOptions(initialProvider, initialModelId)}</select>
+        </div>
+        <div class="row" data-custom-model-row hidden>
+          <label>Custom model id <span class="req">*</span></label>
+          <input name="modelIdCustom" placeholder="e.g. gpt-5-2025-07-30" />
+          <div class="helper">Only needed for dated snapshots or preview models not yet in the dropdown.</div>
+        </div>
+        <div class="row"><label>Temperature</label><input name="defaultTemperature" type="number" step="0.1" value="${suggestedTemperature}" /></div>
+        <div class="row"><label>Max tokens</label><input name="defaultMaxTokens" type="number" value="1024" /></div>
+        <div class="helper" data-provider-hint></div>`,
       primary: "Create", secondary: "Cancel",
       onSubmit: async (data) => {
+        const provider = data.provider;
+        let modelId = data.modelPick;
+        if (modelId === "__custom__") modelId = (data.modelIdCustom || "").trim();
+        if (!modelId) throw new Error("Pick a model (or type a custom id).");
+        const name = (data.name || "").trim() || `${provider}-default`;
         services.createModelProfile({
-          projectId: project.id, name: data.name, provider: data.provider, modelId: data.modelId,
-          defaultTemperature: Number(data.defaultTemperature), defaultMaxTokens: Number(data.defaultMaxTokens),
+          projectId: project.id, name, provider, modelId,
+          defaultTemperature: Number(data.defaultTemperature),
+          defaultMaxTokens: Number(data.defaultMaxTokens),
         });
-        await commit(); toast("Profile created");
+        await commit(); toast(`Profile "${name}" created`);
       },
+    });
+
+    // Wire the dependent selects after the modal paints.
+    setTimeout(() => {
+      const form = document.getElementById("modal-form");
+      if (!form) return;
+      const providerSel = form.querySelector("[data-provider-select]");
+      const modelSel    = form.querySelector("[data-model-select]");
+      const customRow   = form.querySelector("[data-custom-model-row]");
+      const customInput = form.querySelector('[name="modelIdCustom"]');
+      const tempInput   = form.querySelector('[name="defaultTemperature"]');
+      const nameInput   = form.querySelector('[name="name"]');
+      const hint        = form.querySelector("[data-provider-hint]");
+
+      function updateHint() {
+        const p = getProvider(providerSel.value);
+        if (!p) { hint.textContent = ""; return; }
+        hint.textContent = p.requiresKey
+          ? `Needs an API key — add it in Settings. Runs without a key fall back to mock, clearly labelled.`
+          : `No key required. Runs are deterministic and free.`;
+      }
+      function updateCustomRow() {
+        const isCustom = modelSel.value === "__custom__";
+        if (customRow) customRow.hidden = !isCustom;
+        if (customInput) customInput.required = isCustom;
+      }
+      function updateTemperatureSuggestion() {
+        const entry = findModel(providerSel.value, modelSel.value);
+        if (!entry) return;
+        tempInput.value = entry.supportsTemperature === false ? 1 : 0.7;
+      }
+      function refillModels() {
+        const p = providerSel.value;
+        modelSel.innerHTML = modelOptions(p, defaultModelFor(p)?.id || "");
+        if (nameInput && !nameInput.dataset.userEdited) nameInput.value = `${p}-default`;
+        updateCustomRow();
+        updateTemperatureSuggestion();
+        updateHint();
+      }
+      nameInput?.addEventListener("input", () => { nameInput.dataset.userEdited = "1"; });
+      providerSel?.addEventListener("change", refillModels);
+      modelSel?.addEventListener("change", () => {
+        updateCustomRow();
+        updateTemperatureSuggestion();
+      });
+
+      // Seed name + hint on open (name may still be empty placeholder).
+      if (nameInput && !nameInput.value.trim()) nameInput.value = `${initialProvider}-default`;
+      updateHint();
+      updateCustomRow();
+    }, 0);
+  });
+
+  // Per-row delete — soft click, undoable via Ctrl+Z.
+  root.querySelectorAll('[data-act="delete-profile"]').forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const profileId = btn.dataset.profileId;
+      const profile = (project.modelProfiles || []).find((m) => m.id === profileId);
+      if (!profile) return;
+      services.deleteModelProfile({ projectId: project.id, profileId });
+      await commit();
+      toast(`Deleted "${profile.name}"`, {
+        actionLabel: "Undo",
+        onAction: () => { services.undo?.(); commit(); },
+      });
+    });
+  });
+
+  // Delete-all — also undoable, single Ctrl+Z rolls the whole wipe back.
+  root.querySelector('[data-act="delete-all"]')?.addEventListener("click", async () => {
+    const n = (project.modelProfiles || []).length;
+    if (!n) return;
+    if (!confirm(`Delete all ${n} model profiles? Ctrl/⌘+Z will undo.`)) return;
+    services.deleteAllModelProfiles({ projectId: project.id });
+    await commit();
+    toast(`Deleted ${n} profile${n === 1 ? "" : "s"}`, {
+      actionLabel: "Undo",
+      onAction: () => { services.undo?.(); commit(); },
+    });
+  });
+
+  // Seed defaults — bulk-creates one profile per provider for which the
+  // user already has a key configured, plus the mock fallback. Atomic.
+  root.querySelectorAll('[data-act="seed-defaults"]').forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        const created = await services.seedDefaultModelProfiles({ projectId: project.id });
+        await commit();
+        if (!created.length) {
+          toast("Everything was already seeded");
+        } else {
+          toast(`Seeded ${created.length} default profile${created.length === 1 ? "" : "s"}: ${created.join(", ")}`);
+        }
+      } catch (err) {
+        toast("Seed failed: " + (err.message || err));
+      }
     });
   });
 }
