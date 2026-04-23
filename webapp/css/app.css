@@ -1598,3 +1598,141 @@ input[type="checkbox"], input[type="radio"] { -webkit-appearance: auto; appearan
   .main-head .actions .btn { flex: 1 1 100%; }
 }
 
+/* ---------------------------------------------------------------------------
+   Landing page (E1) — only rendered when the workspace has zero visible
+   projects. Layout is centered, generous, and uses the same design tokens
+   as the rest of the app so the jump to the populated workspace feels
+   seamless.
+   --------------------------------------------------------------------------- */
+.topbar-landing { border-bottom-color: transparent; }
+
+.landing {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 48px 24px 72px;
+}
+
+.landing-hero {
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px;
+  padding: 16px 12px 28px;
+}
+.landing-mark {
+  width: 128px; height: 128px;
+  filter: drop-shadow(0 6px 24px rgba(6, 148, 162, 0.20));
+}
+.landing-title {
+  font-size: clamp(36px, 6vw, 56px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  margin: 4px 0 0;
+  background: linear-gradient(135deg, #155e75 0%, #0891b2 55%, #22d3ee 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.landing-tagline {
+  font-size: 15px; font-weight: 500; color: var(--fg-muted);
+  letter-spacing: 0.02em; text-transform: uppercase;
+}
+.landing-pitch {
+  max-width: 620px;
+  color: var(--fg-mute);
+  font-size: 16px; line-height: 1.55;
+  margin: 4px 0 8px;
+}
+.landing-ctas {
+  display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;
+  margin-top: 6px;
+}
+.btn.lg {
+  font-size: 14px; padding: 10px 18px; gap: 8px;
+  border-radius: calc(var(--radius) + 2px);
+}
+.landing-subcta {
+  margin-top: 4px;
+  font-size: 13px; color: var(--fg-faint);
+}
+.landing-subcta a { color: var(--accent); }
+.landing-subcta a:hover { text-decoration: underline; }
+
+.landing-pillars {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 48px 0 32px;
+}
+.landing-pillar {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.landing-pillar-icon {
+  width: 36px; height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent-fg);
+}
+.landing-pillar-title {
+  font-size: 15px; font-weight: 600; color: var(--fg);
+}
+.landing-pillar-copy {
+  font-size: 13px; line-height: 1.5; color: var(--fg-mute);
+}
+
+.landing-features {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 12px 0 36px;
+  padding: 24px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+.landing-feature-col .eyebrow { margin-bottom: 10px; }
+.landing-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.landing-list li {
+  font-size: 13px; line-height: 1.5; color: var(--fg-mute);
+  padding-left: 14px; position: relative;
+}
+.landing-list li::before {
+  content: ""; position: absolute; left: 0; top: 8px;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent);
+}
+.landing-list strong { color: var(--fg); font-weight: 600; }
+.landing-list code {
+  font-family: var(--font-mono); font-size: 11.5px;
+  background: var(--bg-sunk); padding: 1px 6px; border-radius: 4px;
+}
+
+.landing-foot {
+  text-align: center;
+  display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;
+  font-size: 12px; color: var(--fg-faint);
+  margin-top: 24px;
+}
+.landing-foot .dot { color: var(--ink-300); }
+
+/* Tablet + mobile: collapse the pillar + feature grids to a single column
+   so nothing ever truncates or scrolls sideways. */
+@media (max-width: 820px) {
+  .landing { padding: 32px 16px 56px; }
+  .landing-pillars { grid-template-columns: 1fr; margin: 32px 0 24px; }
+  .landing-features { grid-template-columns: 1fr; padding: 20px; }
+  .landing-mark { width: 96px; height: 96px; }
+}
+@media (max-width: 380px) {
+  .landing { padding: 20px 12px 40px; }
+  .landing-mark { width: 84px; height: 84px; }
+  .btn.lg { font-size: 13px; padding: 9px 14px; }
+  /* Pillar icon + copy stay readable on tiny phones */
+  .landing-pillar { padding: 14px 16px; }
+}
+

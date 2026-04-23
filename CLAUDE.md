@@ -103,7 +103,7 @@ prompts. Where competitors collect prompts, we **graduate** them.
   merge button truly `[disabled]` until gate opens; self-approval by
   opener is blocked.
 
-### 2.4 Phase D — Network effects *(in progress)*
+### 2.4 Phase D — Network effects (done)
 
 - **D1: Public read-only share links** — Share button on the prompt view
   packs a `prompt-tree-share/1` slice (project + prompt metadata, target
@@ -141,7 +141,24 @@ prompts. Where competitors collect prompts, we **graduate** them.
   red build. Modal CSS gained `max-height: 80vh; overflow-y: auto` so
   long previews stay in reach on every viewport.
 
-### 2.5 Reversibility — every destructive action can be undone
+### 2.5 Phase E — Brand & positioning *(in progress)*
+
+- **E1: Marketing landing page on `/`** — when the workspace has zero
+  visible projects, `/` now renders a proper first-impression surface:
+  animated brand mark, `Prompt Tree` gradient wordmark, tagline
+  ("Branch. Prove. Ship."), 2-3-sentence pitch, two primary CTAs
+  (*Create your first project*, *Explore with the demo*), and a tertiary
+  "browse the template library" link. Three pillar cards (Branch /
+  Prove / Ship) sit under the hero; a two-column "Authoring / Evidence"
+  feature block anchors the capabilities; a tiny footer strip closes
+  with "Runs entirely in your browser. Git-style, not SaaS. Your data,
+  your device." Topbar is a minimal landing variant — no action row,
+  just brand + Templates + Help + theme. The grid view is untouched
+  when projects exist. Also fixed residual `#a855f7` purple in
+  `webapp/assets/mark.svg` (refinement dash + tip) so every brand
+  surface is ocean-palette only per §1.1.
+
+### 2.6 Reversibility — every destructive action can be undone
 
 Contract: nothing in this app is a one-way door except the explicit
 `purge*` call on an already-soft-deleted entity.
@@ -163,7 +180,7 @@ Contract: nothing in this app is a one-way door except the explicit
 - **Secrets bypass the undo stack by design** — API keys are
   environment, not state.
 
-### 2.6 Testing & verification
+### 2.7 Testing & verification
 
 | Surface | Count / result |
 |---|---|
@@ -176,8 +193,9 @@ Contract: nothing in this app is a one-way door except the explicit
 | **Share smoke** | `scripts/share-smoke.js` — Share button → capture URL → open in fresh context → asserts same title + body + read-only badge; tampered payload surfaces a friendly error. |
 | **Templates smoke** | `scripts/templates-smoke.js` — `/templates` grid paints ≥ 3 cards → preview modal shows body + Import CTA → import creates a new prompt in the demo project with the template body preserved → Ctrl+Z unwinds the import atomically. |
 | **Fork smoke** | `scripts/fork-smoke.js` — Copy-JSON modal emits a valid `prompt-tree-template/1` with a `source` block → paste into `/templates` → preview shows the same body → import creates a new prompt with byte-identical body → Ctrl+Z unwinds. Also asserts malformed paste surfaces a friendly inline error. |
+| **Landing smoke** | `scripts/landing-smoke.js` — with the seed stubbed to an empty workspace, `/` paints the hero / 3 pillars / 2 feature columns; *Explore with the demo* loads the real seed and repaints the grid; *Create your first project* opens the New-project modal; landing topbar never carries the populated action row. |
 
-### 2.7 Security status (browser-only runtime)
+### 2.8 Security status (browser-only runtime)
 
 - `npm audit`: **0 vulnerabilities** (was 5 moderate in the dev
   chain; closed by vitest 2 → 4 on 2026-04-23).
@@ -238,11 +256,11 @@ sub-bullets in place. Done items move to §2.
 
 ### 3.D Phase E — Brand & positioning
 
-| # | Item |
-|---|---|
-| E1 | Marketing landing page on `/` (when no project exists) |
-| E2 | Hero motion: animated mark assembly (seed → fork → head) |
-| E3 | Social card SVG generator per prompt |
+| # | Item | Status |
+|---|---|---|
+| E1 | Marketing landing page on `/` (when no project exists) | **done** | `renderLanding()` in `webapp/js/views/workspace.js` short-circuits when `projects.length === 0` (hiding archived + soft-deleted); hero + 3 pillars + 2-column feature block + footer; primary CTAs wire to New-project modal and a `load-demo` action that hits the same `store.resetTo` path as the topbar "Reset demo" but without the confirm (there's nothing to lose). New CSS block (`.landing-*`) uses the existing design tokens; 2 responsive breakpoints collapse the grids to single-column on ≤ 820 px and shrink the mark on ≤ 380 px. Residual `#a855f7` in `webapp/assets/mark.svg` swapped for `#67e8f9` so every brand surface stays ocean-palette (§1.1). `scripts/landing-smoke.js` uses a ctx-level route stub to starve the boot of seed data, then verifies paint, CTAs, and the topbar variant. |
+| E2 | Hero motion: animated mark assembly (seed → fork → head) | |
+| E3 | Social card SVG generator per prompt | |
 
 ### 3.E Phase F — Backend: GitHub for Prompts
 
