@@ -11,7 +11,7 @@ export function renderProjectView(route) {
   const project = s.projects.find((p) => p.slug === route.path.projectSlug);
   if (!project) return `<div class="main">Project not found.</div>`;
 
-  const prompts = (project.prompts || []).filter((p) => !p.archivedAt);
+  const prompts = (project.prompts || []).filter((p) => !p.archivedAt && !p.deletedAt);
   const totalVersions = prompts.reduce((n, p) => n + p.versions.length, 0);
   const totalBranches = prompts.reduce((n, p) => n + p.branches.length, 0);
 

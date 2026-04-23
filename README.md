@@ -12,11 +12,12 @@ versioned, peer-reviewed, evaluated, and shippable.
 
 [![CI](https://github.com/BEKO2210/Prompt-Versionierung/actions/workflows/ci.yml/badge.svg)](https://github.com/BEKO2210/Prompt-Versionierung/actions/workflows/ci.yml)
 [![Pages](https://github.com/BEKO2210/Prompt-Versionierung/actions/workflows/pages.yml/badge.svg)](https://github.com/BEKO2210/Prompt-Versionierung/actions/workflows/pages.yml)
-[![Tests](https://img.shields.io/badge/tests-101%20passing-brightgreen)](#development)
-[![Phase](https://img.shields.io/badge/roadmap-A%20%C2%B7%20B%20%C2%B7%20C%20done-6d28d9)](#roadmap)
+[![Tests](https://img.shields.io/badge/tests-109%20passing-brightgreen)](#development)
+[![Phase](https://img.shields.io/badge/roadmap-A%20%C2%B7%20B%20%C2%B7%20C%20done-0891b2)](#roadmap)
 [![Offline](https://img.shields.io/badge/offline-first-10b981)](#why-browser-first)
-[![Providers](https://img.shields.io/badge/providers-Anthropic%20%C2%B7%20OpenAI%20%C2%B7%20Gemini%20%C2%B7%20Mock-4338ca)](#ai-providers)
-[![Stack](https://img.shields.io/badge/runtime-vanilla%20ESM%20%C2%B7%20no%20build-a855f7)](#architecture)
+[![Providers](https://img.shields.io/badge/providers-Anthropic%20%C2%B7%20OpenAI%20%C2%B7%20Gemini%20%C2%B7%20Mock-0e7490)](#ai-providers)
+[![Stack](https://img.shields.io/badge/runtime-vanilla%20ESM%20%C2%B7%20no%20build-22d3ee)](#architecture)
+[![Security](https://img.shields.io/badge/npm%20audit-0%20vulnerabilities-brightgreen)](#security)
 [![License](https://img.shields.io/badge/license-source--available-blue)](#licence)
 
 [Quick start](#quick-start) · [Features](#what-it-does) · [AI providers](#ai-providers) · [Architecture](#architecture) · [Roadmap](#roadmap) · [The long vision — GitHub for Prompts](#the-long-vision--github-for-prompts)
@@ -36,7 +37,8 @@ versioned, peer-reviewed, evaluated, and shippable.
 | **Surfaces** | Browser-only webapp · Next.js 15 reference |
 | **State** | IndexedDB · zero backend · BroadcastChannel for cross-tab sync |
 | **Real LLMs** | Anthropic Claude · OpenAI GPT/o-series · Google Gemini · deterministic Mock |
-| **Stats** | 101 vitest cases · 30 captured screens · 0 console errors · 0 layout regressions |
+| **Stats** | 109 vitest cases · 30 captured screens · 0 console errors · 0 layout regressions · 0 npm-audit vulnerabilities |
+| **Reversible** | Every destructive action undoable via <kbd>Ctrl</kbd>+<kbd>Z</kbd> · soft-delete with restore · archive ↔ unarchive |
 | **Phases shipped** | A (Foundation) · B (Real-world readiness) · C (Differentiators) |
 | **Phases pending** | D (Network effects) · E (Brand) · F (Backend — *GitHub for Prompts*) |
 | **Vendored runtime deps** | `marked` · `fuse.js` · `js-tiktoken` — all pure ESM, no CDN |
@@ -141,13 +143,24 @@ full reference.
 - <kbd>R</kbd> — run
 - <kbd>B</kbd> — batch run (matrix modal)
 - <kbd>?</kbd> — open Help from anywhere
+- <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd> — undo last mutation (archive, delete, status transitions — everything)
 - <kbd>Esc</kbd> — close modal / palette / drawer
 
 > [!TIP]
 > Hit <kbd>?</kbd> from any screen for the full reference (12 sections,
 > sticky table of contents, all rendered with marked).
 
-### 10. Offline & portable
+### 10. Every destructive action is reversible
+
+A 1000 %-thought-through rule that most prompt tools get wrong:
+
+- <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd> **from anywhere** undoes the last mutation. The store pushes a structured-clone snapshot onto a bounded (50-entry) ring buffer before each write; undo pops.
+- **Archive** any project / prompt / branch — then `unarchive*` it. Both sides write a symmetric decision row, so the audit trail is honest.
+- **Delete** is soft by default: sets `deletedAt`, hides the entity from the default view, keeps the row. `restore*` brings it back. Hard delete is a separate `purge*` call that refuses to fire unless the entity is already soft-deleted.
+- **Reopen** a declined proposal. (Merged proposals can't be reopened — the source version is already shipped; the correct path is a new proposal.)
+- The secret store (API keys) intentionally **bypasses** the undo history. Keys are environment, not state.
+
+### 11. Offline & portable
 
 - **IndexedDB** for state, **localStorage** for theme + tour flag, **separate IndexedDB store** for encrypted API keys (AES-GCM at-rest, never exported).
 - **Export**: one JSON file with the entire workspace (prompts, versions, branches, runs, evaluations, proposals, decisions, readmes, activities). Secrets are excluded.
@@ -703,6 +716,63 @@ approve) lands in v2 with proper scope-based OAuth.
 
 ---
 
+## Security
+
+The security model is deliberately simple because the attack surface is
+deliberately small.
+
+### Threat model
+
+- **Production runtime**: a single-page app served as static files. No
+  backend, no database, no auth, no session state. The app runs entirely
+  in one browser origin and only talks to the LLM providers the user
+  has configured keys for.
+- **Adversaries we defend against**: malicious cross-origin sites
+  (standard browser origin isolation does the work); opportunistic
+  exfiltration of API keys (covered by the IDB-separate encrypted
+  store); supply-chain tampering of vendored libraries (covered by the
+  *no CDN at runtime* rule).
+- **Adversaries we do not defend against**: a local attacker with full
+  control of the user's browser profile. Same model as git: `git` can't
+  protect you from root on your laptop.
+
+### Guarantees
+
+| What | How |
+|---|---|
+| API keys are **never sent to any server** we control | There is no server. Keys only leave the browser in an HTTPS request to the LLM provider the user typed the key for. |
+| API keys are **never written to disk in plaintext** | `webapp/js/secrets.js` stores them in a separate IDB object store, encrypted with **AES-GCM** bound to this origin via Web Crypto. |
+| API keys are **never exported** | `exportJSON()` reads the main `state` document only; the `secrets` store is untouched. Same for the `BroadcastChannel` cross-tab sync. |
+| API keys **bypass the undo stack** | Keys are environment, not state. `undo()` can't surface a previously-configured key. |
+| HTML output is **escaped at the boundary** | Every user-controlled string that ends up in `innerHTML` (titles, bodies, comment text, toast messages, palette results) goes through `escapeHtml()` in `webapp/js/ui/components.js`. Markdown is rendered through [marked](https://github.com/markedjs/marked) with its built-in escaping. |
+| Runtime dependency graph stays **auditable and tiny** | Three vendored ESM libraries (`marked`, `fuse.js`, `js-tiktoken`), loaded from the repo itself, never from a CDN. |
+
+### Current status
+
+```
+$ npm audit
+found 0 vulnerabilities
+
+$ npm audit --omit=dev
+found 0 vulnerabilities
+```
+
+All 5 moderate findings that previously chained through the dev-only
+`vitest → vite → esbuild` path were closed by bumping vitest to 4.x
+in commit `e9a41d3`. Production deps had always been clean.
+
+An automated security review of every commit on the
+`claude/review-test-all-features-Bngtr` branch was performed (see
+`scripts/` and the commit log) — zero HIGH or MEDIUM severity
+findings at confidence ≥ 8.
+
+### Responsible disclosure
+
+If you think you've found a vulnerability in Prompt Tree, please open a
+**private** issue or email the maintainer before posting publicly.
+
+---
+
 ## Development
 
 ### Commands
@@ -735,13 +805,14 @@ cd webapp && python3 -m http.server 8080
 
 ### Headless verification
 
-Three Playwright scripts make sure the UI doesn't regress before push:
+Five Playwright scripts make sure the UI doesn't regress before push:
 
 ```bash
-node scripts/ui-walkthrough.js   # 30 screens, asserts 0 console errors
-node scripts/audit.js            # 23 routes × 3 viewports — link / overflow / tap-target audit
-node scripts/batch-smoke.js      # presses B, asserts new run rows appear
-node scripts/approval-smoke.js   # approve → gate opens → revoke → gate closes
+node scripts/ui-walkthrough.js      # 30 screens, asserts 0 console errors
+node scripts/audit.js               # 23 routes × 3 viewports — link / overflow / tap-target audit
+node scripts/batch-smoke.js         # presses B, asserts new run rows appear
+node scripts/approval-smoke.js      # approve → gate opens → revoke → gate closes
+node scripts/reversibility-smoke.js # archive/delete/archive-branch → Ctrl+Z → state restored
 ```
 
 The walkthrough rewrites every `scripts/screenshots/*.png` you saw in
@@ -753,7 +824,7 @@ the gallery above — so the README images are always the *current* app.
 
 | Job | Purpose |
 |---|---|
-| `domain-tests` | `npm run test` — 101 vitest cases, no DB |
+| `domain-tests` | `npm run test` — 109 vitest cases, no DB |
 | `typecheck` | `tsc --noEmit` — strict mode |
 | `lint` | `next lint` — eslint + next/core-web-vitals |
 | `build` | `prisma db push` against a SQLite CI db + `next build` |

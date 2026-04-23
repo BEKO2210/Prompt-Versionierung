@@ -1,6 +1,6 @@
 // Entry point — wires router + store + views + keyboard + palette.
 
-import { loadState, subscribe as subscribeStore, startMultiTabSync, getState } from "./store.js";
+import { loadState, subscribe as subscribeStore, startMultiTabSync, getState, undo as storeUndo, canUndo, commit } from "./store.js";
 import { start as startRouter, subscribe as subscribeRoute, route as currentRoute, navigate } from "./router.js";
 import * as services from "./services.js";
 import { icon, toast } from "./ui/components.js";
@@ -139,6 +139,23 @@ function setupGlobalKeyboard() {
     if (isCmdK) {
       e.preventDefault();
       openPalette();
+      return;
+    }
+
+    // Cmd/Ctrl+Z — undo the last mutation. Works from ANY view; ignored
+    // while typing in an input/textarea (browsers handle native text undo
+    // there). Shift+Cmd+Z is intentionally NOT bound — we don't support
+    // redo yet; forking a new action after an undo clears the future.
+    const isUndo = (e.key === "z" || e.key === "Z") && (e.metaKey || e.ctrlKey) && !e.shiftKey;
+    if (isUndo && !inField) {
+      e.preventDefault();
+      if (canUndo()) {
+        storeUndo();
+        commit();
+        toast("Undone");
+      } else {
+        toast("Nothing to undo");
+      }
       return;
     }
     if (inField) return;
