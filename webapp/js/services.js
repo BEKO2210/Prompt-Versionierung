@@ -144,7 +144,7 @@ export function archiveBranch({ promptId, branchId, rationale }) {
   });
 }
 
-const PALETTE = ["#6366f1","#10b981","#f59e0b","#a855f7","#ec4899","#0ea5e9","#22c55e","#f43f5e","#14b8a6","#eab308"];
+const PALETTE = ["#0891b2","#10b981","#f59e0b","#14b8a6","#ec4899","#0ea5e9","#22c55e","#f43f5e","#06b6d4","#eab308"];
 function pickColor(i) { return PALETTE[i % PALETTE.length]; }
 
 // ---------------------------------------------------------------------------

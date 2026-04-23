@@ -15,7 +15,7 @@
       "updatedAt": 1713878400000,
       "approvalsRequired": 2,
       "members": [
-        { "id": "mem_belkis", "name": "Belkis",  "initials": "BK", "color": "#6d28d9" },
+        { "id": "mem_belkis", "name": "Belkis",  "initials": "BK", "color": "#0891b2" },
         { "id": "mem_ada",    "name": "Ada",     "initials": "AD", "color": "#0ea5e9" },
         { "id": "mem_marco",  "name": "Marco",   "initials": "MC", "color": "#10b981" }
       ],
@@ -34,7 +34,7 @@
             { "id": "br_main",       "name": "main",          "headVersionId": "ver_2", "createdFromVersionId": null,    "status": "active",  "createdAt": 1713792000000, "color": "#6366f1" },
             { "id": "br_few_shot",   "name": "few-shot",      "headVersionId": "ver_5", "createdFromVersionId": "ver_2", "status": "active",  "createdAt": 1713805000000, "color": "#10b981" },
             { "id": "br_json",       "name": "json-output",   "headVersionId": "ver_4", "createdFromVersionId": "ver_3", "status": "active",  "createdAt": 1713820000000, "color": "#f59e0b" },
-            { "id": "br_refine",     "name": "refine-v5-2041","headVersionId": "ver_6", "createdFromVersionId": "ver_5", "status": "active",  "createdAt": 1713860000000, "color": "#a855f7" }
+            { "id": "br_refine",     "name": "refine-v5-2041","headVersionId": "ver_6", "createdFromVersionId": "ver_5", "status": "active",  "createdAt": 1713860000000, "color": "#14b8a6" }
           ],
           "versions": [
             {

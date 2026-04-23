@@ -708,7 +708,7 @@ function renderTrendTab({ project, prompt }) {
   const tcList = [...tcKeys];
 
   // Distinct, friendly colours per series (consistent across renders).
-  const palette = ["#6366f1", "#10b981", "#f59e0b", "#ec4899", "#0ea5e9", "#a855f7", "#22c55e", "#f43f5e"];
+  const palette = ["#0891b2", "#10b981", "#f59e0b", "#ec4899", "#0ea5e9", "#14b8a6", "#22c55e", "#f43f5e"];
   const colorOf = (i) => palette[i % palette.length];
 
   const baseHref = `#/p/${project.slug}/p/${prompt.slug}/v/`;

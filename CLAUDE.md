@@ -21,7 +21,7 @@ prompts. Where competitors collect prompts, we **graduate** them.
 | **Name** | Prompt Tree (one word visually possible: PromptTree) |
 | **Mark** | Three-node sigil: open seed → small fork dot → crowned head, joined by a single continuous spline. φ-proportions, −8° rotation. The spline is one path because the line from seed to head **never breaks**. |
 | **Voice** | Direct. Engineering-credible. No emoji clutter. Explains *why*, not just *what*. |
-| **Color** | Indigo→Violet→Purple (#4338ca → #6d28d9 → #a855f7) for accent. Slate ink for substance. Status palette per state. |
+| **Color** | Ocean cyan/teal (#155e75 → #0891b2 → #22d3ee) for accent. Slate ink for substance. Status palette per state. Explicitly **no purple** in the brand — the palette was swapped from indigo/violet/purple on 2026-04-23 after user feedback that it felt generic. |
 | **Typography** | System UI for legibility everywhere. Mono for hashes, code, version numbers. |
 | **Anti-positioning** | Not a prompt vault. Not a wrapper around one model. Not a SaaS dashboard. We're tools, not telemetry. |
 
