@@ -118,6 +118,31 @@ sub-bullets in place. Done items move to §2.
 | E2 | Hero motion: animated mark assembly (seed → fork → head) |
 | E3 | Social card SVG generator per prompt |
 
+### 3.E Phase F — Backend: GitHub for Prompts
+
+The long-term ambition. The browser-only app is the **wedge** — a complete
+product that works offline for a solo prompt engineer. Phase F keeps every
+offline workflow intact and adds the collaboration + discovery primitives
+that make a shared platform.
+
+| # | Item |
+|---|---|
+| F1 | Backend API (Next.js Route Handlers + Prisma/Postgres) that mirrors the webapp service layer one-for-one |
+| F2 | Auth: email + OAuth (GitHub, Google). Per-user avatar + display name replaces the local `currentActor` |
+| F3 | Organisations / teams with role-based membership (owner / maintainer / reviewer / viewer) |
+| F4 | Remote repositories: `push` a project to the server, `pull` to sync. Conflict rule = same as git — the version DAG is append-only so conflicts can only happen on branch pointers |
+| F5 | Public profiles + public prompts; `prompttree.com/<user>/<project>` read-only view of the UI |
+| F6 | Forking across workspaces: one-click copy of a public project (or one prompt slice) into your own workspace, with a `forked_from` lineage edge that crosses project boundaries |
+| F7 | Issues on prompts (bug reports, requests, discussion threads), same thread primitive the proposals already use |
+| F8 | Server-side run cache: same (version, modelProfile, testCase, seed) hits never re-billed; sharable across a team |
+| F9 | Pluggable run executors: browser-only stays default; teams can register a server-side executor that proxies to their own quota/rate-limited API keys |
+| F10 | Search across public prompts (title, body, README, tags) |
+| F11 | Stars, follows, activity feed per user — the social surface |
+| F12 | Webhooks on `version_created`, `proposal_opened`, `proposal_merged`, `release_published` for CI/CD hooks into downstream systems |
+| F13 | OAuth app + REST API (read-only v1) so third parties can build bots / linters / dashboards |
+
+**Non-goals even at Phase F**: we do not store API keys on the server. BYOK-in-browser stays the primary path — Phase F8/F9 is opt-in team infrastructure, not a replacement.
+
 ---
 
 ## 4. Vendored dependencies (added in this turn)
