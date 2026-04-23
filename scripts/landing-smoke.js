@@ -64,9 +64,52 @@ function fail(msg) { console.error("FAIL:", msg); process.exit(1); }
     const resetBtn = await page.$('.topbar [data-act="reset"]');
     if (resetBtn) fail("landing topbar should not carry 'Reset demo' (only on populated workspace)");
 
+    // Hero motion (E2): must use the tuned hero asset, and the tagline
+    // must be broken into the three sequential reveal words so CSS can
+    // time each one to the SVG's SMIL beats.
+    const heroSrc = await page.$eval("[data-hero-mark]", (el) => el.getAttribute("src"));
+    if (!/mark-hero\.svg/.test(heroSrc)) fail(`expected mark-hero.svg on default motion, got ${heroSrc}`);
+    const words = await page.$$eval(".landing-tagline .reveal-word", (xs) => xs.map((x) => x.textContent.trim()));
+    if (words.length !== 3 || words.join(" ") !== "Branch. Prove. Ship.") {
+      fail(`tagline word split is wrong: ${JSON.stringify(words)}`);
+    }
+
     if (page.errs.length) fail("test 1 console errors: " + page.errs.join(" | "));
-    console.log("✓ test 1: empty workspace paints the landing surface");
+    console.log("✓ test 1: empty workspace paints the landing surface with hero mark + 3 sequential words");
     await page.context().close();
+  }
+
+  // ───────────── Test 1b: prefers-reduced-motion swaps to static mark ──
+  {
+    const ctx = await browser.newContext({
+      viewport: { width: 1400, height: 900 },
+      reducedMotion: "reduce",
+    });
+    await ctx.route("**/data/seed.json", (r) => r.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ meta: { updatedAt: 0, revision: 0, schemaVersion: 1, author: null }, projects: [] }),
+    }));
+    await ctx.addInitScript(() => { try { localStorage.setItem("prompt-tree:tour:completed", "1"); } catch {} });
+    const page = await ctx.newPage();
+    const errs = [];
+    page.on("console", (m) => { if (m.type() === "error") errs.push("console: " + m.text()); });
+    page.on("pageerror", (e) => errs.push("pageerror: " + e.message));
+
+    await page.goto("http://localhost:4497/", { waitUntil: "networkidle" });
+    await wait(400);
+    const src = await page.$eval("[data-hero-mark]", (el) => el.getAttribute("src"));
+    if (!/\/mark\.svg$/.test(src)) fail(`reduced-motion should use static mark.svg, got ${src}`);
+    const flag = await page.evaluate(() => document.documentElement.dataset.reducedMotion);
+    if (flag !== "1") fail(`expected html[data-reduced-motion="1"] flag`);
+    // The reveal classes should have opacity 1 (animation bypassed) —
+    // sample the tagline third word as a canary.
+    const opacity = await page.$eval(".landing-tagline .reveal-word-3", (el) =>
+      parseFloat(getComputedStyle(el).opacity));
+    if (opacity < 0.99) fail(`reduced-motion: expected opacity ≈ 1, got ${opacity}`);
+
+    if (errs.length) fail("test 1b console errors: " + errs.join(" | "));
+    console.log("✓ test 1b: prefers-reduced-motion → static mark + instant reveal");
+    await ctx.close();
   }
 
   // ───────────── Test 2: "Explore with the demo" loads the seed ────────

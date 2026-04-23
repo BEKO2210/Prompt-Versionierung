@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Prompt Tree — hero assembly (E2)
+  ────────────────────────────────
+  Same geometry as mark.svg / mark-animated.svg (three-node sigil,
+  φ-proportions, −8° rotation, ocean palette). The tempo is slower
+  than mark-animated.svg — this one is the hero surface on the
+  landing page, so every beat earns its seconds.
+
+  Narrative beats (0 → 4.2 s, then loops):
+
+    t = 0.00 s  ▸ seed bounces in — "the story begins"
+    t = 0.30 s  ▸ main spline starts drawing from the seed
+    t = 1.30 s  ▸ spline reaches the fork — fork node bounces in
+                  (the landing page reveals "Branch." at this beat)
+    t = 1.80 s  ▸ refinement side-branch fades + draws out
+    t = 2.20 s  ▸ refinement tip bounces in
+                  (the landing page reveals "Prove." at this beat)
+    t = 2.60 s  ▸ spline reaches the canonical head — head bounces in
+    t = 2.90 s  ▸ crown ring expands
+                  (the landing page reveals "Ship." at this beat)
+    t = 4.00 s  ▸ Beat 2 starts: spark loops seed → head every 3 s,
+                  head pulses when spark lands, crown breathes,
+                  refinement dashes march.
+
+  Pure SMIL — no JS — so the SVG renders anywhere. Renderers that
+  strip animation land on the final drawn state (fill="freeze" on the
+  reveal animations). Users who prefer reduced motion get the static
+  mark swapped in by the landing page's bind step.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="Prompt Tree">
+  <title>Prompt Tree — branch, prove, ship.</title>
+
+  <defs>
+    <!-- Brand-gradient ink: deep teal → cyan → light cyan (ocean palette). -->
+    <linearGradient id="pth-ink" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+      <stop offset="0"    stop-color="#155e75"/>
+      <stop offset="0.55" stop-color="#0891b2"/>
+      <stop offset="1"    stop-color="#22d3ee"/>
+    </linearGradient>
+
+    <!-- Spark gradient (traveling dot) — brighter than the spline -->
+    <radialGradient id="pth-spark" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0"   stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="0.5" stop-color="#cffafe" stop-opacity="0.95"/>
+      <stop offset="1"   stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Soft halo on the spline -->
+    <filter id="pth-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="0.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Stronger halo on the canonical head — visual weight -->
+    <filter id="pth-glow-head" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="0.8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g transform="rotate(-8 12 12)" fill="none" stroke-width="2"
+     stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- ════ Main spline: seed → fork → head ════
+         Path length ≈ 19.2 units. Draws in two visually distinct halves
+         (seed→fork, then fork→head) by offset-animating stroke-dashoffset
+         with a hold at the fork moment so the viewer perceives the
+         pause. Also the glow filter makes the line read luminous. -->
+    <path d="M 6 20 C 6 16, 12 15.2, 12 11.2 C 12 8.0, 15.8 6.8, 17 5.2"
+          stroke="url(#pth-ink)" filter="url(#pth-glow)"
+          stroke-dasharray="24" stroke-dashoffset="24">
+      <animate attributeName="stroke-dashoffset"
+               values="24;  12;  12;  0"
+               keyTimes="0; 0.38; 0.52; 1"
+               begin="0.3s" dur="2.3s" fill="freeze"
+               calcMode="spline"
+               keySplines="0.4 0 0.2 1 ; 0 0 1 1 ; 0.4 0 0.2 1"/>
+    </path>
+
+    <!-- ════ Traveling spark ════
+         Chases from seed to head along the same path, once every 3 s.
+         Visible only from t=4 s onwards. "1.5 200" = a short bright
+         glyph with a long gap so only one dot is ever visible. -->
+    <path d="M 6 20 C 6 16, 12 15.2, 12 11.2 C 12 8.0, 15.8 6.8, 17 5.2"
+          stroke="#ffffff" stroke-width="2.2"
+          stroke-dasharray="1.5 200" stroke-dashoffset="3"
+          opacity="0" filter="url(#pth-glow)">
+      <animate attributeName="opacity"
+               from="0" to="0.95"
+               begin="3.9s" dur="0.2s" fill="freeze"/>
+      <animate attributeName="stroke-dashoffset"
+               values="3;    3;    -20;  -20"
+               keyTimes="0;   0.08; 0.72; 1"
+               dur="3s" begin="4s" repeatCount="indefinite"
+               calcMode="spline"
+               keySplines="0 0 1 1 ; 0.45 0 0.25 1 ; 0 0 1 1"/>
+    </path>
+
+    <!-- ════ Refinement side-branch ════
+         Draws in between the fork and the head (so "prove" sits
+         between "branch" and "ship"). Ocean-teal dash marches slowly
+         during Beat 2. -->
+    <path d="M 12 11.2 C 15.4 12.4, 18.2 13.6, 19.6 15.2"
+          stroke="#14b8a6" stroke-width="1.5"
+          stroke-dasharray="2 2.2" stroke-dashoffset="0"
+          opacity="0">
+      <animate attributeName="opacity"
+               from="0" to="0.85"
+               begin="1.8s" dur="0.5s" fill="freeze"/>
+      <animate attributeName="stroke-dashoffset"
+               from="0" to="-4.2"
+               begin="4s" dur="3s" repeatCount="indefinite"/>
+    </path>
+
+    <!-- ════ Seed — open bottom-left circle ════ -->
+    <g transform="translate(6 20)">
+      <circle r="1.7" stroke="url(#pth-ink)" fill="#ffffff" filter="url(#pth-glow)"
+              opacity="0">
+        <animate attributeName="opacity"
+                 from="0" to="1"
+                 begin="0s" dur="0.4s" fill="freeze"/>
+        <animateTransform attributeName="transform" type="scale"
+                 values="0.2; 1.3; 1"
+                 keyTimes="0; 0.6; 1"
+                 begin="0s" dur="0.55s" fill="freeze"
+                 calcMode="spline"
+                 keySplines="0.4 0 0.2 1 ; 0.4 0 0.6 1"/>
+      </circle>
+    </g>
+
+    <!-- ════ Fork — solid middle dot ════
+         Arrives at t=1.30s — aligned with the "Branch." word. -->
+    <g transform="translate(12 11.2)">
+      <circle r="1.35" fill="url(#pth-ink)" filter="url(#pth-glow)"
+              opacity="0">
+        <animate attributeName="opacity"
+                 from="0" to="1"
+                 begin="1.3s" dur="0.3s" fill="freeze"/>
+        <animateTransform attributeName="transform" type="scale"
+                 values="0.2; 1.35; 1"
+                 keyTimes="0; 0.6; 1"
+                 begin="1.3s" dur="0.55s" fill="freeze"
+                 calcMode="spline"
+                 keySplines="0.4 0 0.2 1 ; 0.4 0 0.6 1"/>
+      </circle>
+    </g>
+
+    <!-- ════ Refinement tip — open end of the dashed branch ════
+         Arrives at t=2.20s — aligned with the "Prove." word. -->
+    <g transform="translate(19.6 15.2)">
+      <circle r="1.3" stroke="#14b8a6" stroke-width="1.3" fill="#ffffff"
+              opacity="0">
+        <animate attributeName="opacity"
+                 from="0" to="1"
+                 begin="2.2s" dur="0.3s" fill="freeze"/>
+        <animateTransform attributeName="transform" type="scale"
+                 values="0.2; 1.3; 1"
+                 keyTimes="0; 0.6; 1"
+                 begin="2.2s" dur="0.5s" fill="freeze"
+                 calcMode="spline"
+                 keySplines="0.4 0 0.2 1 ; 0.4 0 0.6 1"/>
+      </circle>
+    </g>
+
+    <!-- ════ Canonical head — filled disk ════
+         Arrives at t=2.60s, then pulses every 3 s from t=4 s. Aligned
+         with the "Ship." word (which reveals at the crown expansion). -->
+    <g transform="translate(17 5.2)">
+      <circle r="2.1" fill="url(#pth-ink)" filter="url(#pth-glow-head)"
+              opacity="0">
+        <animate attributeName="opacity"
+                 from="0" to="1"
+                 begin="2.6s" dur="0.3s" fill="freeze"/>
+        <animateTransform attributeName="transform" type="scale"
+                 values="0.2; 1.4; 1"
+                 keyTimes="0; 0.55; 1"
+                 begin="2.6s" dur="0.6s" fill="freeze"
+                 calcMode="spline"
+                 keySplines="0.4 0 0.2 1 ; 0.4 0 0.6 1"
+                 additive="replace"/>
+        <!-- Perpetual arrival pulse — aligned with spark landing -->
+        <animateTransform attributeName="transform" type="scale"
+                 values="1; 1; 1.2; 1"
+                 keyTimes="0; 0.6; 0.72; 1"
+                 begin="4s" dur="3s" repeatCount="indefinite"
+                 calcMode="spline"
+                 keySplines="0 0 1 1 ; 0.3 0 0.4 1 ; 0.4 0 0.2 1"
+                 additive="sum"/>
+      </circle>
+
+      <!-- Crown ring — expands on reveal (t=2.9s), then breathes forever -->
+      <circle r="3.2" stroke="url(#pth-ink)" stroke-width="1.1" opacity="0">
+        <animate attributeName="opacity"
+                 from="0" to="0.55"
+                 begin="2.9s" dur="0.6s" fill="freeze"/>
+        <animate attributeName="r"
+                 from="2.2" to="3.2"
+                 begin="2.9s" dur="0.7s" fill="freeze"
+                 calcMode="spline" keySplines="0.4 0 0.2 1"/>
+        <!-- Breath: opacity + radius together, 2.6s cycle -->
+        <animate attributeName="opacity"
+                 values="0.55; 0.3; 0.55"
+                 keyTimes="0; 0.5; 1"
+                 begin="4s" dur="2.6s" repeatCount="indefinite"
+                 calcMode="spline"
+                 keySplines="0.4 0 0.6 1 ; 0.4 0 0.6 1"/>
+        <animate attributeName="r"
+                 values="3.2; 3.55; 3.2"
+                 keyTimes="0; 0.5; 1"
+                 begin="4s" dur="2.6s" repeatCount="indefinite"
+                 calcMode="spline"
+                 keySplines="0.4 0 0.6 1 ; 0.4 0 0.6 1"/>
+      </circle>
+    </g>
+
+  </g>
+</svg>

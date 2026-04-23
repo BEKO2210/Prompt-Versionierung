@@ -143,6 +143,20 @@ prompts. Where competitors collect prompts, we **graduate** them.
 
 ### 2.5 Phase E — Brand & positioning *(in progress)*
 
+- **E2: Hero motion** — the landing page now opens with a narrative
+  assembly instead of a silent static mark. New `webapp/assets/mark-hero.svg`
+  runs a slower, more deliberate SMIL timeline (seed 0 s → fork 1.3 s →
+  refinement tip 2.2 s → head 2.6 s → crown 2.9 s → spark-loop begins
+  4 s) tuned for hero display at 160 px. The tagline is broken into
+  three `.reveal-word-*` spans with CSS `animation-delay`s pinned to
+  the SMIL beats: "Branch." reveals when the fork lands, "Prove." when
+  the refinement tip lands, "Ship." when the crown expands. Title,
+  pitch, and CTAs then cascade in at 3.5 / 3.85 / 4.15 / 4.4 s so the
+  whole hero assembles as one coherent beat. `prefers-reduced-motion`
+  is respected on both layers: the `<img>` src swaps to the static
+  `mark.svg` (SMIL is outside the stylesheet's reach), and
+  `html[data-reduced-motion="1"]` collapses every `.reveal-*` animation
+  to `animation: none; opacity: 1`.
 - **E1: Marketing landing page on `/`** — when the workspace has zero
   visible projects, `/` now renders a proper first-impression surface:
   animated brand mark, `Prompt Tree` gradient wordmark, tagline
@@ -193,7 +207,7 @@ Contract: nothing in this app is a one-way door except the explicit
 | **Share smoke** | `scripts/share-smoke.js` — Share button → capture URL → open in fresh context → asserts same title + body + read-only badge; tampered payload surfaces a friendly error. |
 | **Templates smoke** | `scripts/templates-smoke.js` — `/templates` grid paints ≥ 3 cards → preview modal shows body + Import CTA → import creates a new prompt in the demo project with the template body preserved → Ctrl+Z unwinds the import atomically. |
 | **Fork smoke** | `scripts/fork-smoke.js` — Copy-JSON modal emits a valid `prompt-tree-template/1` with a `source` block → paste into `/templates` → preview shows the same body → import creates a new prompt with byte-identical body → Ctrl+Z unwinds. Also asserts malformed paste surfaces a friendly inline error. |
-| **Landing smoke** | `scripts/landing-smoke.js` — with the seed stubbed to an empty workspace, `/` paints the hero / 3 pillars / 2 feature columns; *Explore with the demo* loads the real seed and repaints the grid; *Create your first project* opens the New-project modal; landing topbar never carries the populated action row. |
+| **Landing smoke** | `scripts/landing-smoke.js` — with the seed stubbed to an empty workspace, `/` paints the hero / 3 pillars / 2 feature columns; hero uses `mark-hero.svg` and splits the tagline into three `.reveal-word` spans; under `prefers-reduced-motion: reduce` the src swaps to static `mark.svg` and reveal opacity is 1 instantly; *Explore with the demo* loads the real seed and repaints the grid; *Create your first project* opens the New-project modal; landing topbar never carries the populated action row. |
 
 ### 2.8 Security status (browser-only runtime)
 
@@ -259,7 +273,7 @@ sub-bullets in place. Done items move to §2.
 | # | Item | Status |
 |---|---|---|
 | E1 | Marketing landing page on `/` (when no project exists) | **done** | `renderLanding()` in `webapp/js/views/workspace.js` short-circuits when `projects.length === 0` (hiding archived + soft-deleted); hero + 3 pillars + 2-column feature block + footer; primary CTAs wire to New-project modal and a `load-demo` action that hits the same `store.resetTo` path as the topbar "Reset demo" but without the confirm (there's nothing to lose). New CSS block (`.landing-*`) uses the existing design tokens; 2 responsive breakpoints collapse the grids to single-column on ≤ 820 px and shrink the mark on ≤ 380 px. Residual `#a855f7` in `webapp/assets/mark.svg` swapped for `#67e8f9` so every brand surface stays ocean-palette (§1.1). `scripts/landing-smoke.js` uses a ctx-level route stub to starve the boot of seed data, then verifies paint, CTAs, and the topbar variant. |
-| E2 | Hero motion: animated mark assembly (seed → fork → head) | |
+| E2 | Hero motion: animated mark assembly (seed → fork → head) | **done** | new `webapp/assets/mark-hero.svg` with an extended narrative SMIL timeline (seed 0 s → fork 1.3 s → refinement tip 2.2 s → head 2.6 s → crown 2.9 s → spark-loop at 4 s); landing tagline split into `.reveal-word-*` spans with CSS `animation-delay`s pinned to those beats (1.40 / 2.30 / 3.00 s), then title / pitch / CTAs / sub-CTA cascade at 3.50 / 3.85 / 4.15 / 4.40 s. `prefers-reduced-motion` handled on two layers: `<img>` src swaps to static `mark.svg` in `bindWorkspace`, and `html[data-reduced-motion="1"]` + the `@media` query collapse every CSS reveal to an instant paint. Landing smoke picks up both the hero mark assertion and the reduced-motion swap. |
 | E3 | Social card SVG generator per prompt | |
 
 ### 3.E Phase F — Backend: GitHub for Prompts

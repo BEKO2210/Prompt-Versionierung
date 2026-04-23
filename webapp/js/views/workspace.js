@@ -90,19 +90,23 @@ function renderLanding() {
 
     <main class="landing">
       <section class="landing-hero">
-        <img class="landing-mark" src="./assets/mark-animated.svg" width="128" height="128" alt="Prompt Tree" />
-        <h1 class="landing-title">Prompt Tree</h1>
-        <div class="landing-tagline">Branch. Prove. Ship.</div>
-        <p class="landing-pitch">
+        <img class="landing-mark" src="./assets/mark-hero.svg" width="160" height="160" alt="Prompt Tree" data-hero-mark />
+        <h1 class="landing-title reveal reveal-title">Prompt Tree</h1>
+        <div class="landing-tagline" aria-label="Branch. Prove. Ship.">
+          <span class="reveal reveal-word reveal-word-1">Branch.</span>
+          <span class="reveal reveal-word reveal-word-2">Prove.</span>
+          <span class="reveal reveal-word reveal-word-3">Ship.</span>
+        </div>
+        <p class="landing-pitch reveal reveal-pitch">
           Prompt Tree is the place where prompts grow up — versioned,
           peer-reviewed, evaluated, and shippable. Runs entirely in your
           browser. No backend, no telemetry, no lock-in.
         </p>
-        <div class="landing-ctas">
+        <div class="landing-ctas reveal reveal-ctas">
           <button class="btn accent lg" data-act="new-project">${icon("plus", { size: 14 })} Create your first project</button>
           <button class="btn lg" data-act="load-demo">${icon("play", { size: 14 })} Explore with the demo</button>
         </div>
-        <div class="landing-subcta">
+        <div class="landing-subcta reveal reveal-subcta">
           Or <a href="#/templates">browse the template library</a> — six curated starter prompts ready to import.
         </div>
       </section>
@@ -155,6 +159,17 @@ function pillar(iconName, title, copy) {
 }
 
 export function bindWorkspace(root) {
+  // Reduced-motion fallback: swap the animated hero SVG for the static
+  // mark and add a body-level flag the CSS picks up to collapse the
+  // sequential word/title reveals to an instant paint. SMIL itself is
+  // out of the stylesheet's reach, so the asset swap is the only way to
+  // actually silence the animation.
+  const hero = root.querySelector("[data-hero-mark]");
+  if (hero && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    hero.src = "./assets/mark.svg";
+    document.documentElement.dataset.reducedMotion = "1";
+  }
+
   root.querySelector('[data-act="new-project"]')?.addEventListener("click", () => {
     modal({
       title: "New project",

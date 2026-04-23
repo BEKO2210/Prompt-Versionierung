@@ -1619,8 +1619,8 @@ input[type="checkbox"], input[type="radio"] { -webkit-appearance: auto; appearan
   padding: 16px 12px 28px;
 }
 .landing-mark {
-  width: 128px; height: 128px;
-  filter: drop-shadow(0 6px 24px rgba(6, 148, 162, 0.20));
+  width: 160px; height: 160px;
+  filter: drop-shadow(0 10px 36px rgba(6, 148, 162, 0.24));
 }
 .landing-title {
   font-size: clamp(36px, 6vw, 56px);
@@ -1635,7 +1635,52 @@ input[type="checkbox"], input[type="radio"] { -webkit-appearance: auto; appearan
 .landing-tagline {
   font-size: 15px; font-weight: 500; color: var(--fg-muted);
   letter-spacing: 0.02em; text-transform: uppercase;
+  display: inline-flex; gap: 8px; justify-content: center;
 }
+.landing-tagline .reveal-word { display: inline-block; }
+
+/* ---------------------------------------------------------------------------
+   Hero reveal (E2) — sequential word + title fade-ins synced to the
+   mark-hero.svg SMIL timeline.  Each `.reveal-*` class carries the right
+   `animation-delay` so the text lands *as* the corresponding node in the
+   SVG bounces into place:
+
+     reveal-word-1 ("Branch.")   → fork node,         t = 1.40 s
+     reveal-word-2 ("Prove.")    → refinement tip,    t = 2.30 s
+     reveal-word-3 ("Ship.")     → crown expansion,   t = 3.00 s
+     reveal-title ("Prompt Tree") → full assembly,    t = 3.50 s
+     reveal-pitch                                      t = 3.85 s
+     reveal-ctas                                       t = 4.15 s
+     reveal-subcta                                     t = 4.40 s
+
+   The reveal animation is identical across targets (fade + micro-rise)
+   so everything feels like one coherent assembly.
+   --------------------------------------------------------------------------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(6px);
+  animation: landing-reveal 0.55s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.reveal-word-1 { animation-delay: 1.40s; }
+.reveal-word-2 { animation-delay: 2.30s; }
+.reveal-word-3 { animation-delay: 3.00s; }
+.reveal-title  { animation-delay: 3.50s; }
+.reveal-pitch  { animation-delay: 3.85s; }
+.reveal-ctas   { animation-delay: 4.15s; }
+.reveal-subcta { animation-delay: 4.40s; }
+
+@keyframes landing-reveal {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Reduced-motion users: SMIL is out of our reach (we swap the animated
+   SVG for the static mark in JS), but the CSS reveals MUST collapse to
+   the final state instantly so the text doesn't flash. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal { animation: none; opacity: 1; transform: none; }
+}
+html[data-reduced-motion="1"] .reveal { animation: none; opacity: 1; transform: none; }
 .landing-pitch {
   max-width: 620px;
   color: var(--fg-mute);
