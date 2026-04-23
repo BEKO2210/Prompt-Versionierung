@@ -143,6 +143,21 @@ prompts. Where competitors collect prompts, we **graduate** them.
 
 ### 2.5 Phase E — Brand & positioning *(in progress)*
 
+- **OpenGraph / link preview card** — posting the deploy URL on Reddit
+  used to show a blank blue placeholder because `webapp/index.html`
+  carried zero social tags. Fixed with a static 1200 × 630 brand card
+  under `webapp/assets/og-card.svg` (+ rasterised `og-card.png` shipped
+  alongside, regenerable via `scripts/og-rasterize.js`) and a full
+  block of `og:*` + `twitter:*` meta tags in `index.html` with
+  absolute URLs (Facebook's crawler refuses relative `og:image`). The
+  card is a static end-state composition — centred brand sigil, big
+  gradient title, tagline, pitch, three proof-points, deploy URL —
+  tuned to read even at WhatsApp's narrow thumbnail crop. Hash-based
+  share URLs (`#/share?d=…`) reuse the same default preview because
+  crawlers never see the fragment; per-prompt OG images would need
+  the Phase F backend. `scripts/og-smoke.js` asserts every required
+  tag, that the PNG is served with `image/png` at exactly 1200×630,
+  and that the SVG fallback is reachable.
 - **Model catalog + OpenAI max_completion_tokens fix** — user hit
   `OpenAI rejected the request (400). Unsupported parameter: 'max_tokens'
   is not supported with this model. Use 'max_completion_tokens' instead.`
@@ -269,6 +284,7 @@ Contract: nothing in this app is a one-way door except the explicit
 | **Templates smoke** | `scripts/templates-smoke.js` — `/templates` grid paints ≥ 3 cards → preview modal shows body + Import CTA → import creates a new prompt in the demo project with the template body preserved → Ctrl+Z unwinds the import atomically. |
 | **Fork smoke** | `scripts/fork-smoke.js` — Copy-JSON modal emits a valid `prompt-tree-template/1` with a `source` block → paste into `/templates` → preview shows the same body → import creates a new prompt with byte-identical body → Ctrl+Z unwinds. Also asserts malformed paste surfaces a friendly inline error. |
 | **Social-card smoke** | `scripts/social-card-smoke.js` — modal opens with a 1200 × 630 inline SVG preview carrying the project / prompt / version metadata; theme toggle dark ↔ light actually repaints the preview; Download .svg fires a real download event with a `prompttree-social-*.svg` filename. |
+| **OG smoke** | `scripts/og-smoke.js` — HTTP-GETs the served `index.html` and greps for every required `og:*` / `twitter:*` tag (title, description, absolute URL, 1200×630 image with type `image/png`); fetches the PNG + verifies the PNG signature + IHDR width/height; fetches the SVG fallback + verifies the viewBox. Catches `og:image` regressions that a browser-rendered walkthrough can't. |
 | **Models smoke** | `scripts/models-smoke.js` — provider dropdown lists all four providers (Gemini included, previously missing); model dropdown pulls from the catalog + exposes a Custom-id escape hatch; creating a profile with catalog picks stores the right `{provider, modelId}`; per-row trash deletes and Ctrl+Z restores; Delete-all wipes and Seed-defaults atomically creates one profile per available provider, Ctrl+Z unwinds both in one step. |
 | **Landing smoke** | `scripts/landing-smoke.js` — 7 tests. Empty workspace paints hero / 3 pillars / 2 feature columns with `mark-hero.svg` + 3 `.reveal-word` spans; `prefers-reduced-motion` swaps to static mark + instant reveal; *Explore with the demo* loads the real seed and paints the grid; *Create your first project* opens the New-project modal; landing topbar never carries the populated action row; fresh visit with a real seeded demo shows the landing first with the state-aware *Go to your workspace* CTA (not the demo reset — that would wipe the user's data); Go-to-workspace keeps state intact, sets the marker, paints the grid; reload skips the landing; **Welcome** topbar clears the marker and re-reveals the landing; broken `seed.json` surfaces a *Demo failed* toast, leaves the visitor on the landing, does NOT set the marker, and re-enables the button for retry. |
 
