@@ -15,6 +15,7 @@ const routes = [
   { re: /^\/?$/, name: "workspace" },
   { re: /^\/settings\/?$/, name: "settings" },
   { re: /^\/help\/?$/, name: "help" },
+  { re: /^\/share\/?$/, name: "share" },
   { re: /^\/p\/([^/]+)\/?$/, name: "project" },
   { re: /^\/p\/([^/]+)\/prompts\/?$/, name: "prompts" },
   { re: /^\/p\/([^/]+)\/datasets\/?$/, name: "datasets" },

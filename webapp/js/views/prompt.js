@@ -16,6 +16,7 @@ import {
   serializeRun, serializeRunsForVersion,
   downloadJSON, copyJSON, fileNameForRun, fileNameForRunsBundle,
 } from "../runFormat.js";
+import { packShare, buildShareUrl } from "../share.js";
 
 // --- entry points ---
 export function renderPromptView(route) {
@@ -276,6 +277,7 @@ function renderMainHead({ project, prompt, version }) {
         <button class="btn" data-act="batch">${icon("beaker", { size: 13 })} Batch</button>
         <button class="btn ghost-accent" data-act="refine">${icon("spark", { size: 13 })} Refine</button>
         <button class="btn" data-act="compare">${icon("compare", { size: 13 })} Compare</button>
+        <button class="btn" data-act="share">${icon("upload", { size: 13 })} Share</button>
         <button class="btn accent" data-act="promote">${icon("crown", { size: 13 })} Promote</button>
       </div>
     </div>
@@ -935,6 +937,7 @@ export function bindPromptView(root, route) {
     navigate(`/p/${ctx.project.slug}/p/${ctx.prompt.slug}/refine/${ctx.version.id}`));
   root.querySelector('[data-act="compare"]')?.addEventListener("click", () =>
     navigate(`/p/${ctx.project.slug}/p/${ctx.prompt.slug}/compare`, { b: ctx.version.id }));
+  root.querySelector('[data-act="share"]')?.addEventListener("click", () => openShareModal(ctx));
   root.querySelector('[data-act="promote"]')?.addEventListener("click", () => openPromoteModal(ctx));
 
   // --- notes tab quick add ---
@@ -1430,6 +1433,58 @@ function openPromoteModal({ project, prompt, version }) {
       toast("Promoted");
     },
   });
+}
+
+// --- Share: builds a read-only link encoding a minimum prompt slice.
+// The payload lives in the URL hash (#/share?d=<base64url>), never
+// leaves the browser, and — like everything else in the app — never
+// carries secrets (readme, body, decisions yes; API keys never). ---
+async function openShareModal({ project, prompt, version }) {
+  let slice, url, err;
+  try {
+    slice = packShare({ project, prompt, versionId: version.id });
+    url = await buildShareUrl(slice);
+  } catch (e) {
+    err = e?.message || String(e);
+  }
+  const includes = slice
+    ? `${slice.versions.length} version${slice.versions.length === 1 ? "" : "s"} · ${slice.branches.length} branch${slice.branches.length === 1 ? "" : "es"}`
+    : "—";
+  modal({
+    title: "Share this version",
+    sub: "The full prompt slice is encoded into the link. Open it in any browser — no account required.",
+    body: err
+      ? `<div class="modal-error" style="display:block">${escapeHtml(err)}</div>`
+      : `
+        <div class="row">
+          <label>Shareable URL</label>
+          <textarea readonly style="min-height:96px;font-family:var(--mono);font-size:12px" data-share-url>${escapeHtml(url)}</textarea>
+        </div>
+        <div class="kv" style="margin-top:8px">
+          <div class="row"><div class="k">Includes</div><div class="v">${escapeHtml(includes)}</div></div>
+          <div class="row"><div class="k">Target</div><div class="v">v${version.number} — ${escapeHtml(version.title)}</div></div>
+          <div class="row"><div class="k">Length</div><div class="v">${url ? url.length.toLocaleString() + " chars" : "—"}</div></div>
+        </div>
+        <div class="helper">Anyone with this link can read the prompt body, version chain, and README. Nothing is sent to a server.</div>`,
+    primary: "Copy link", secondary: "Close",
+    onSubmit: async () => {
+      if (!url) return;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast("Share link copied", {
+          actionLabel: "Open preview",
+          onAction: () => { window.open(url, "_blank", "noopener"); },
+        });
+      } catch {
+        toast("Copy failed — select the text manually");
+      }
+    },
+  });
+  // Auto-select the URL so ⌘C works immediately.
+  setTimeout(() => {
+    const ta = document.querySelector("[data-share-url]");
+    if (ta) { ta.focus(); ta.select(); }
+  }, 50);
 }
 
 function openNoteModal({ prompt, version }) {

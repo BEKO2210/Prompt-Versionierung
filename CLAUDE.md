@@ -103,7 +103,21 @@ prompts. Where competitors collect prompts, we **graduate** them.
   merge button truly `[disabled]` until gate opens; self-approval by
   opener is blocked.
 
-### 2.4 Reversibility — every destructive action can be undone
+### 2.4 Phase D — Network effects *(in progress)*
+
+- **D1: Public read-only share links** — Share button on the prompt view
+  packs a `prompt-tree-share/1` slice (project + prompt metadata, target
+  version, full ancestor chain, the branches that chain touches) into
+  `#/share?d=<base64url>`. Payload is gzip-compressed via
+  `CompressionStream` when the browser supports it, raw otherwise, with
+  an `algo.payload` prefix for forward-compat. The read-only view
+  (`webapp/js/views/share.js`) rehydrates in a fresh context, renders
+  the body/metadata/README without any editing affordances, and treats
+  the slice as untrusted input (validated by `validateShare`, every
+  string escaped at the boundary). The workspace state is never
+  mutated — nothing to import yet; that lands with D3.
+
+### 2.5 Reversibility — every destructive action can be undone
 
 Contract: nothing in this app is a one-way door except the explicit
 `purge*` call on an already-soft-deleted entity.
@@ -125,18 +139,19 @@ Contract: nothing in this app is a one-way door except the explicit
 - **Secrets bypass the undo stack by design** — API keys are
   environment, not state.
 
-### 2.5 Testing & verification
+### 2.6 Testing & verification
 
 | Surface | Count / result |
 |---|---|
-| **Vitest pure-domain cases** | 109 passing — `history.test.ts` (8), `approval.test.ts` (13), `stats.test.ts` (14), plus 74 foundational cases (rendering, diff, lineage, promotion, versioning, branching, hashing, status, analyzers, evaluators). |
+| **Vitest pure-domain cases** | 125 passing — `history.test.ts` (8), `approval.test.ts` (13), `stats.test.ts` (14), `share.test.ts` (16), plus 74 foundational cases (rendering, diff, lineage, promotion, versioning, branching, hashing, status, analyzers, evaluators). |
 | **Headless walkthrough** | `scripts/ui-walkthrough.js` — 30 reference screenshots, 0 console errors enforced before every push. |
 | **Responsive audit** | `scripts/audit.js` — 23 routes × 3 viewports (1400 / 820 / 390). 0 horizontal scroll, 0 off-screen buttons, 0 tap-target violations (WCAG 2.5.8 AA). |
 | **Batch smoke** | `scripts/batch-smoke.js` — presses `B`, asserts run rows appear. |
 | **Approval smoke** | `scripts/approval-smoke.js` — approve → gate opens → revoke → gate closes. |
 | **Reversibility smoke** | `scripts/reversibility-smoke.js` — archive / delete / archive-branch → Ctrl+Z → state restored; also asserts the "Nothing to undo" guard. |
+| **Share smoke** | `scripts/share-smoke.js` — Share button → capture URL → open in fresh context → asserts same title + body + read-only badge; tampered payload surfaces a friendly error. |
 
-### 2.6 Security status (browser-only runtime)
+### 2.7 Security status (browser-only runtime)
 
 - `npm audit`: **0 vulnerabilities** (was 5 moderate in the dev
   chain; closed by vitest 2 → 4 on 2026-04-23).
@@ -189,11 +204,11 @@ sub-bullets in place. Done items move to §2.
 
 ### 3.C Phase D — Network effects
 
-| # | Item |
-|---|---|
-| D1 | Public read-only share links (encode minimum prompt slice into URL hash) |
-| D2 | Prompt template library (curated starter packs, importable) |
-| D3 | Fork-to-clipboard: one click copies a prompt as a portable JSON |
+| # | Item | Status |
+|---|---|---|
+| D1 | Public read-only share links (encode minimum prompt slice into URL hash) | **done** | pure `packShare` / `validateShare` + `ancestorChain` in `src/domain/share.ts` (mirrored in `webapp/js/share.js`); codec layer does base64url + gzip via `CompressionStream` with an `algo.payload` prefix (gz/raw) for forward-compat and a raw fallback when the browser lacks gzip. Share button in the action bar opens a modal with the URL, Includes / Target / Length breakdown, Copy-to-clipboard + open-preview action. New `#/share?d=…` route renders a dedicated read-only view (`webapp/js/views/share.js`) with breadcrumb → project/prompt lockup, "read-only share" badge, version chain (clickable to re-target in memory), body, metadata, README; the workspace state is never touched. 16 new vitest cases cover pack/round-trip/validate rejection paths; `scripts/share-smoke.js` verifies the full produce → consume → tamper-safety flow end-to-end. |
+| D2 | Prompt template library (curated starter packs, importable) | |
+| D3 | Fork-to-clipboard: one click copies a prompt as a portable JSON | |
 
 ### 3.D Phase E — Brand & positioning
 

@@ -228,6 +228,28 @@ Perfect for diff vs baseline regressions.
 
 ---
 
+## Share links
+
+The **Share** button on the prompt view packs a minimum slice of the
+current prompt — project + prompt metadata, the selected version, its
+full ancestor chain, the branches that chain touches, the README — into
+the URL hash. Format tag: \`prompt-tree-share/1\`. The payload is
+gzip-compressed when your browser supports \`CompressionStream\` and
+base64url-encoded otherwise, with a short \`algo.\` prefix so older
+clients can refuse links they can't decode.
+
+Opening a share URL renders a dedicated **read-only view**: no Edit,
+no Run, no Promote, no IndexedDB write. You can still click through
+the version chain in the sidebar — that re-targets in memory only.
+Everything that lives on the viewer's own workspace stays untouched.
+
+Privacy note: share payloads ride in the URL fragment (after \`#\`),
+which browsers **never send to servers**. But they *are* inside the
+URL you paste — treat them like you'd treat a private gist. Nothing
+sensitive (API keys, run outputs, secrets) is ever included.
+
+---
+
 ## Privacy & data location
 
 - All your work lives in IndexedDB on **this device, this browser**.
