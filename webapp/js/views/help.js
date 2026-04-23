@@ -240,7 +240,11 @@ logged-in users).
 
 Want to see the landing again? The topbar has a **Welcome** button
 that clears the marker and navigates back. Your workspace state is
-untouched — the button is a navigation, not a reset.
+untouched — the button is a navigation, not a reset. When you come
+back to the landing this way, the primary CTA becomes **Go to your
+workspace** (a straight re-entry, *never* a data reset) and the
+demo-loader option disappears so your projects are safe from an
+accidental click.
 
 The only other way the landing shows up is when the workspace is
 genuinely empty (no visible projects after filters). In that case it
