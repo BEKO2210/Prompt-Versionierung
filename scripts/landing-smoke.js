@@ -306,6 +306,53 @@ function fail(msg) { console.error("FAIL:", msg); process.exit(1); }
     await ctx.close();
   }
 
+  // ───────────── Test 6: tour never auto-starts while the landing is up ─
+  // The spotlight tour is meant for the populated workspace (project
+  // grid, activity feed, etc.). Opening it on the marketing surface
+  // would aim tooltips at elements that don't exist there. The gate:
+  // the autostart should only fire after the visitor has both taken
+  // a landing CTA (marker set) AND is actually on the workspace route
+  // with projects visible. This test drives the full handoff.
+  {
+    // Stub seed.json empty on the initial boot so the landing renders
+    // the load-demo CTA (real seed would paint the has-projects
+    // go-to-workspace CTA). The click then fetches the real seed.
+    const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+    let boot = true;
+    await ctx.route("**/data/seed.json", (route) => {
+      if (boot) {
+        boot = false;
+        route.fulfill({
+          status: 200, contentType: "application/json",
+          body: JSON.stringify({ meta: { updatedAt: 0, revision: 0, schemaVersion: 1, author: null }, projects: [] }),
+        });
+      } else route.fallback();
+    });
+    // NOTE: no tour-completed init script — a genuinely-fresh visitor.
+    const page = await ctx.newPage();
+    const errs = [];
+    page.on("console", (m) => { if (m.type() === "error") errs.push("console: " + m.text()); });
+
+    await page.goto("http://localhost:4497/", { waitUntil: "networkidle" });
+    await wait(800);                  // past the 300ms tour-autostart deferral
+
+    if (!(await page.$(".landing-hero"))) fail("test 6 pre: landing should be up");
+    if (await page.$("#tour-root .tour-tooltip")) {
+      fail("tour tooltip must NOT appear while the landing is visible");
+    }
+
+    // Cross into the workspace — the autostart gate should open now.
+    await page.click('[data-act="load-demo"]');
+    await wait(1200);
+    if (!(await page.$("#tour-root .tour-tooltip"))) {
+      fail("tour tooltip must appear once the visitor lands on the populated workspace");
+    }
+
+    if (errs.length) fail("test 6 console errors: " + errs.join(" | "));
+    console.log("✓ test 6: tour stays silent on the landing, auto-starts once the workspace paints");
+    await ctx.close();
+  }
+
   console.log("\nAll landing-page tests passed.");
   await browser.close();
   server.kill();

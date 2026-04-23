@@ -50,23 +50,43 @@ import {
 
   startRouter();
   startMultiTabSync();
-  subscribeRoute(() => render());
-  subscribeStore(() => render());
+  subscribeRoute(() => { render(); maybeFireTourForCurrentRoute(); });
+  subscribeStore(() => { render(); maybeFireTourForCurrentRoute(); });
   render();
 
   setupGlobalKeyboard();
   hideSplash();
 
-  // First-visit onboarding: open the spotlight tour over real data.
-  // Skipped if the user has completed it before (localStorage marker).
-  // Wait a tick so the first paint has finished; then defer to the tour.
+  // First-visit onboarding: the spotlight tour is meant to explain the
+  // *workspace* — the project grid + the prompt view. Firing it on the
+  // landing would aim its spotlight at elements that don't exist there
+  // (no "Reset demo" chip, no project card). So we just expose the
+  // start handle at boot and let the route-subscriber below trigger
+  // maybeAutoStart once the visitor actually reaches the workspace.
   setTimeout(async () => {
     const tour = await import("./tour.js");
-    tour.maybeAutoStart();
-    // Expose for the workspace topbar's "Tutorial" link.
+    window.__tour = tour;
     window.__startTour = () => tour.start({ force: true });
+    // If we booted directly onto the populated workspace (returning
+    // visitor with the landing marker set), consider auto-starting.
+    maybeFireTourForCurrentRoute();
   }, 300);
 })();
+
+// Call after every route change. The tour's own `isCompleted()` check
+// short-circuits the second time, so we don't need a separate guard.
+async function maybeFireTourForCurrentRoute() {
+  const route = currentRoute();
+  if (route?.name !== "workspace") return;
+  let landingSeen = false;
+  try { landingSeen = localStorage.getItem("prompt-tree:landing-seen") === "1"; } catch {}
+  if (!landingSeen) return;                  // still on the marketing surface
+  const state = getState();
+  const visible = (state?.projects || []).filter((p) => !p.archivedAt && !p.deletedAt);
+  if (visible.length === 0) return;          // renderLanding() wins here, don't aim at nothing
+  const tour = window.__tour || await import("./tour.js");
+  tour.maybeAutoStart();
+}
 
 async function loadSeed() {
   try {
