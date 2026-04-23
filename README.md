@@ -449,4 +449,62 @@ Copy or download as a stable `prompt-tree-run/1` JSON envelope.
 
 ---
 
-**→ Teil 3b fertig. Sag „weiter" für 3c (volle Roadmap + GitHub-for-Prompts-Vision).**
+## Roadmap
+
+The single source of truth lives in [`CLAUDE.md`](CLAUDE.md) §3. Below
+is the human-readable summary. **Done** items are deployed in the demo
+right now; **pending** items have an open design slot.
+
+### Phase A — Foundation **(done)**
+
+The core domain, service layer, evaluators, mock model adapter, both
+execution surfaces (Next.js + offline webapp), domain test suite,
+brand mark, GitHub Pages deploy.
+
+### Phase B — Real-world readiness **(done)**
+
+| # | Item |
+|---|---|
+| B1 | Real LLM provider integration with secure key storage (Anthropic + OpenAI + Gemini, mock fallback) |
+| B1.1 | Settings UI for API keys + AES-GCM-encrypted IDB store |
+| B1.2 | Real Anthropic adapter with `anthropic-dangerous-direct-browser-access` |
+| B1.3 | Real OpenAI adapter (chat completions, o-series special cases) |
+| B1.4 | Real Google Gemini adapter (`x-goog-api-key` header, `systemInstruction`, safety-block error mapping) |
+| B2 | Standardised `prompt-tree-run/1` JSON envelope + bundle export, schema documented in [`docs/run-format.md`](docs/run-format.md) |
+| B3 | Token counting + cost prediction (tiktoken + chars/4 fallback, per-model pricing table) |
+| B4 | First-run onboarding tour over the real demo (7 steps, replayable) |
+| B5 | Single-page Help reference (12 sections, sticky TOC, `?` hotkey) |
+
+### Phase C — Differentiators **(done)**
+
+| # | Item |
+|---|---|
+| C1 | Blame view — every body line shows who introduced it |
+| C2 | Eval-score trend chart per prompt |
+| C3 | A/B testing with Wilson + Newcombe statistical significance markers |
+| C4 | Multi-model batch evaluation matrix (one click, N models × M cases) |
+| C5 | Real markdown via marked everywhere (README, proposals, comments) |
+| C6 | Fuzzy command palette via Fuse.js |
+| C7 | Approval gate on proposals — configurable N approvals required to merge |
+
+### Phase D — Network effects (pending)
+
+| # | Item |
+|---|---|
+| D1 | Public read-only share links (encode minimum prompt slice into the URL hash — works without a backend) |
+| D2 | Prompt template library — curated starter packs, importable in one click |
+| D3 | Fork-to-clipboard — one-click copy of a prompt as a portable JSON, paste anywhere |
+
+### Phase E — Brand & positioning (pending)
+
+| # | Item |
+|---|---|
+| E1 | Marketing landing page on `/` (when no project exists) |
+| E2 | Hero motion — animated mark assembly (seed → fork → head, the brand sigil) |
+| E3 | Social card SVG generator per prompt |
+
+### Phase F — Backend: **GitHub for Prompts** (long vision) — see [next section](#the-long-vision--github-for-prompts)
+
+---
+
+**→ Teil 3c fertig. Sag „weiter" für 3d (die ausführliche „GitHub for Prompts"-Vision mit allen Phase-F-Items).**
