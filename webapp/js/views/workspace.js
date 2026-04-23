@@ -3,6 +3,27 @@ import { getState, exportJSON, importJSON, commit } from "../store.js";
 import * as services from "../services.js";
 import { navigate } from "../router.js";
 
+// Marker the landing page checks to decide whether to show itself.
+// Set once the visitor has acted on one of the landing CTAs (Create
+// project or Explore with the demo). GitHub-style: the marketing
+// surface is the first thing a fresh visitor sees; once they've
+// "signed up" they always land on the dashboard from then on.
+const LANDING_SEEN_KEY = "prompt-tree:landing-seen";
+
+function hasSeenLanding() {
+  try { return localStorage.getItem(LANDING_SEEN_KEY) === "1"; }
+  catch { return false; }
+}
+function markLandingSeen() {
+  try { localStorage.setItem(LANDING_SEEN_KEY, "1"); } catch {}
+}
+function unmarkLandingSeen() {
+  try { localStorage.removeItem(LANDING_SEEN_KEY); } catch {}
+}
+// Exposed so main.js can run a one-time migration for users who
+// already have projects from before this gate existed.
+export { hasSeenLanding, markLandingSeen, LANDING_SEEN_KEY };
+
 export function renderWorkspace() {
   const s = getState();
   // Hide both archived and soft-deleted projects from the main grid.
@@ -10,10 +31,10 @@ export function renderWorkspace() {
   // Both can still be restored from Settings (or via Ctrl/Cmd+Z right after).
   const projects = (s.projects || []).filter((p) => !p.archivedAt && !p.deletedAt);
 
-  // When the workspace is empty (truly-new install or after delete-all),
-  // show the proper landing page instead of the grid chrome. This is the
-  // E1 surface — marketing-grade first impression.
-  if (projects.length === 0) return renderLanding();
+  // Show the landing page if (a) the workspace is genuinely empty, or
+  // (b) the visitor hasn't acknowledged it yet. This is the E1 surface
+  // — marketing-grade first impression.
+  if (projects.length === 0 || !hasSeenLanding()) return renderLanding();
 
   return html`
     ${renderChromeTopbar()}
@@ -44,6 +65,7 @@ function renderChromeTopbar() {
         Prompt Tree
       </a>
       <span class="topbar-spacer"></span>
+      <button class="topbar-action" data-act="show-landing" title="Back to the landing page">${icon("info", { size: 13 })} Welcome</button>
       <button class="topbar-action" data-act="tour">${icon("info", { size: 13 })} Tutorial</button>
       <a class="topbar-action" href="#/templates">${icon("rubric", { size: 13 })} Templates</a>
       <a class="topbar-action" href="#/help">${icon("info", { size: 13 })} Help</a>
@@ -181,6 +203,7 @@ export function bindWorkspace(root) {
       onSubmit: async (data) => {
         const id = services.createProject({ name: data.name, description: data.description });
         await commit();
+        markLandingSeen();
         toast("Project created");
         const s = getState(); const p = s.projects.find((x) => x.id === id);
         navigate(`/p/${p.slug}`);
@@ -190,11 +213,14 @@ export function bindWorkspace(root) {
 
   // Landing-page specific: load the seeded demo into an empty workspace.
   // Reuses the same `resetTo` path the topbar "Reset demo" uses; no
-  // confirm dialog because there's literally nothing to lose.
+  // confirm dialog because there's literally nothing to lose. Setting
+  // the landing-seen marker is what promotes the visitor from the
+  // marketing surface to the workspace proper.
   root.querySelector('[data-act="load-demo"]')?.addEventListener("click", async () => {
     const seed = await fetch("./data/seed.json").then((r) => r.json());
     const { resetTo } = await import("../store.js");
     await resetTo(seed);
+    markLandingSeen();
     toast("Loaded the demo");
     navigate("/");
   });
@@ -242,6 +268,14 @@ export function bindWorkspace(root) {
   root.querySelector('[data-act="tour"]')?.addEventListener("click", async () => {
     const t = await import("../tour.js");
     t.start({ force: true });
+  });
+
+  // Revisit the landing page from anywhere. Keeps the workspace state
+  // intact — clearing the marker is the only effect — so the user can
+  // poke the marketing surface and then click back in.
+  root.querySelector('[data-act="show-landing"]')?.addEventListener("click", () => {
+    unmarkLandingSeen();
+    navigate("/");
   });
 }
 
